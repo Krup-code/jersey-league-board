@@ -1,0 +1,1 @@
+ffdraft-mcp @ git+https://github.com/zacharytran26/Fantasy-Football-Draft-MCP.git@a7be0c83c1c2a2ad0cc6b004bc01b00f72805854

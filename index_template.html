@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Draft board, lineups, schedule, news and highlights for the Jersey League fantasy football draft.">
+<title>Jersey League Board</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10140f;
+      --surface: #171d16;
+      --surface-2: #1c231b;
+      --text: #eaf0e7;
+      --muted: #8fa08f;
+      --border: #2a332a;
+      --accent: #4fa97a;
+      --accent-soft: #1b2a20;
+      --good: #5bc98a;
+      --bad: #e17165;
+      --warn: #e0a857;
+      --qb: #a996e0;
+      --rb: #4fbfc7;
+      --wr: #e0b24a;
+      --te: #e08a52;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10140f;
+    --surface: #171d16;
+    --surface-2: #1c231b;
+    --text: #eaf0e7;
+    --muted: #8fa08f;
+    --border: #2a332a;
+    --accent: #4fa97a;
+    --accent-soft: #1b2a20;
+    --good: #5bc98a;
+    --bad: #e17165;
+    --warn: #e0a857;
+    --qb: #a996e0;
+    --rb: #4fbfc7;
+    --wr: #e0b24a;
+    --te: #e08a52;
+  }
+  :root {
+    --bg: #f4f6f1;
+    --surface: #ffffff;
+    --surface-2: #eef1ea;
+    --text: #16201a;
+    --muted: #5c6b60;
+    --border: #dbe2d6;
+    --accent: #1f5d42;
+    --accent-soft: #e3eee6;
+    --good: #2e7d4f;
+    --bad: #b23b32;
+    --warn: #b8792b;
+    --qb: #5b4b8a;
+    --rb: #1d6f76;
+    --wr: #a67c1e;
+    --te: #a6491e;
+
+    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-data: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 64px; }
+
+  /* ---------- Header / nameplate ---------- */
+  header.plate {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .plate-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 22px 20px 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .plate-title {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .plate-title .accent-word { color: var(--accent); font-style: italic; }
+  .plate-meta {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-family: var(--font-data);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .plate-meta b { color: var(--text); font-weight: 600; }
+
+  /* ---------- Top-level tabs ---------- */
+  .tabs {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2px 20px 0;
+    display: flex;
+    gap: 4px;
+  }
+  .tab-btn {
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    padding: 9px 16px 11px;
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ---------- Board controls ---------- */
+  .controls {
+    position: sticky;
+    top: 78px;
+    z-index: 29;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .search {
+    flex: 1 1 220px;
+    min-width: 180px;
+    position: relative;
+  }
+  .search input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    padding: 9px 12px 9px 32px;
+    border-radius: 7px;
+    outline: none;
+  }
+  .search input:focus { border-color: var(--accent); }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.55; }
+
+  .pos-tabs { display: flex; gap: 6px; }
+  .pos-tab {
+    font-family: var(--font-data);
+    font-size: 12.5px;
+    letter-spacing: 0.4px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pos-tab:hover { color: var(--text); }
+  .pos-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pos-tab.active { color: #0c130f; } }
+  :root[data-theme="dark"] .pos-tab.active { color: #0c130f; }
+
+  .value-toggle {
+    font-family: var(--font-data);
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .value-toggle.active { border-color: var(--good); color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
+
+  .count-note { font-family: var(--font-data); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  /* ---------- Board table ---------- */
+  .board { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .board thead th {
+    position: sticky;
+    top: 137px;
+    background: var(--bg);
+    text-align: left;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .board thead th:hover { color: var(--text); }
+  .board thead th.num { text-align: right; }
+  .board thead th.sorted { color: var(--accent); }
+  .board thead th .arrow { font-size: 9px; margin-left: 3px; opacity: 0.8; }
+
+  .board tbody tr.row { cursor: pointer; }
+  .board tbody tr.row:hover td { background: var(--surface-2); }
+  .board tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  .board tbody td.num {
+    font-family: var(--font-data);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .rk { font-family: var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rk b { color: var(--text); }
+
+  .name-cell { display: flex; align-items: baseline; gap: 8px; }
+  .name-cell .nm { font-weight: 600; }
+  .name-cell .rookie-flag {
+    font-family: var(--font-data);
+    font-size: 9.5px;
+    letter-spacing: 0.4px;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .bye-flag {
+    font-family: var(--font-data);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: white;
+    min-width: 28px;
+    text-align: center;
+  }
+  .chip.QB { background: var(--qb); }
+  .chip.RB { background: var(--rb); }
+  .chip.WR { background: var(--wr); }
+  .chip.TE { background: var(--te); }
+  .chip.FB { background: var(--te); }
+
+  .delta { font-weight: 600; }
+  .delta.pos { color: var(--good); }
+  .delta.neg { color: var(--bad); }
+  .delta.zero { color: var(--muted); }
+
+  .cons-bar-wrap { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
+  .cons-bar { width: 46px; height: 5px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+  .cons-bar i { display: block; height: 100%; background: var(--accent); }
+  .cons-pct { font-family: var(--font-data); font-size: 12px; width: 30px; text-align: right; }
+
+  .risk-pill { font-family: var(--font-data); font-size: 11px; padding: 2px 7px; border-radius: 20px; border: 1px solid transparent; }
+  .risk-low { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+  .risk-mid { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .risk-high { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
+
+  tr.detail { display: none; }
+  tr.detail.open { display: table-row; }
+  tr.detail td { background: var(--surface); padding: 16px 18px 20px; border-bottom: 1px solid var(--border); }
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px 22px; }
+  .dstat .dlabel { font-family: var(--font-ui); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 3px; }
+  .dstat .dvalue { font-family: var(--font-data); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .dstat .dvalue.na { color: var(--muted); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-family: var(--font-ui); font-size: 14px; }
+
+  /* ---------- Lineups tab ---------- */
+  .lineups-toolbar {
+    position: sticky; top: 78px; z-index: 29; background: var(--bg);
+    border-bottom: 1px solid var(--border); padding: 12px 0 14px;
+  }
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .team-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px 16px;
+  }
+  .team-card-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .team-card-head .tname { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+  .team-card-head .tbye { font-family: var(--font-data); font-size: 11px; color: var(--muted); }
+  .depth-row { display: flex; gap: 8px; padding: 3px 0; align-items: baseline; }
+  .depth-row .chip { flex-shrink: 0; }
+  .depth-row .dplayers { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+  .depth-row .dplayers .starter { font-weight: 600; }
+  .depth-row .dplayers .backup { color: var(--muted); }
+  .depth-row .dplayers .sep { color: var(--border); margin: 0 2px; }
+
+  /* ---------- Schedule tab ---------- */
+  .bye-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 16px 0 22px;
+  }
+  .bye-panel h3 { font-family: var(--font-display); font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+  .bye-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px 16px;
+  }
+  .bye-item {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-data); font-size: 13px;
+    padding: 3px 0; border-bottom: 1px dotted var(--border);
+  }
+  .bye-item .bwk { color: var(--accent); font-weight: 700; }
+
+  .week-block { margin-bottom: 18px; }
+  .week-head {
+    font-family: var(--font-ui); font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted);
+    padding: 6px 0; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  }
+  .week-head .wcount { font-family: var(--font-data); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .week-head .caret { font-size: 10px; transition: transform 0.15s; }
+  .week-block.collapsed .caret { transform: rotate(-90deg); }
+  .week-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  .week-block.collapsed .week-games { display: none; }
+  .game-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+    padding: 7px 11px; font-size: 13px;
+  }
+  .game-row.div { border-left: 3px solid var(--accent); }
+  .game-teams { font-family: var(--font-data); font-weight: 600; }
+  .game-when { font-family: var(--font-data); font-size: 11px; color: var(--muted); }
+
+  /* ---------- News & Highlights ---------- */
+  .tab-intro {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 16px 0 4px;
+  }
+  .section-head {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    margin: 28px 0 12px;
+  }
+
+  .news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .news-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-decoration: none;
+    color: var(--text);
+  }
+  .news-card:hover { border-color: var(--accent); }
+  .news-card .nhead {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-bottom: 5px;
+  }
+  .news-card .ntitle { font-weight: 600; font-size: 14.5px; text-wrap: balance; }
+  .news-card .nmeta { font-family: var(--font-data); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .news-card .ndesc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .hl-players { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .hl-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .hl-card .hl-who { display: flex; align-items: center; gap: 10px; }
+  .hl-card .hl-name { font-weight: 600; font-size: 13.5px; }
+  .hl-watch {
+    font-family: var(--font-data); font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--accent); text-decoration: none; border: 1px solid var(--accent);
+    border-radius: 6px; padding: 5px 10px; white-space: nowrap;
+  }
+  .hl-watch:hover { background: var(--accent-soft); }
+
+  .hl-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+  .hl-game-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .hl-game-card .hgt { font-family: var(--font-data); font-weight: 600; font-size: 13px; }
+  .hl-game-card .hgw { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); }
+
+  footer {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+    font-family: var(--font-ui);
+  }
+  footer code { font-family: var(--font-data); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  @media (max-width: 720px) {
+    .plate-title { font-size: 24px; }
+    .controls, .lineups-toolbar { top: 118px; }
+    .board thead th { top: 177px; }
+    .board thead th:nth-child(n+8),
+    .board tbody td:nth-child(n+8) { display: none; }
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="plate">
+    <div class="plate-inner">
+      <div><h1 class="plate-title">Jersey League <span class="accent-word">Board</span></h1></div>
+      <div class="plate-meta">
+        <span><b>12</b> teams &middot; <b>Full PPR</b></span>
+        <span>Your slot: <b>#9</b></span>
+        <span id="asof-note"></span>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="board">Draft Board</button>
+      <button class="tab-btn" data-tab="lineups">Lineups</button>
+      <button class="tab-btn" data-tab="schedule">Schedule &amp; Byes</button>
+      <button class="tab-btn" data-tab="news">News</button>
+      <button class="tab-btn" data-tab="highlights">Highlights</button>
+    </div>
+  </header>
+
+  <!-- ============ BOARD ============ -->
+  <section class="panel active" id="panel-board">
+    <div class="controls">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="q" type="text" placeholder="Search a player&hellip;" autocomplete="off" />
+      </div>
+      <div class="pos-tabs" id="pos-tabs">
+        <span class="pos-tab active" data-pos="ALL">ALL</span>
+        <span class="pos-tab" data-pos="QB">QB</span>
+        <span class="pos-tab" data-pos="RB">RB</span>
+        <span class="pos-tab" data-pos="WR">WR</span>
+        <span class="pos-tab" data-pos="TE">TE</span>
+      </div>
+      <div class="value-toggle" id="value-toggle" title="Players the model ranks well ahead of where they'll actually be picked">VALUE PICKS ONLY</div>
+      <div class="count-note"><span id="visible-count">632</span> shown &middot; tap a row for full breakdown</div>
+    </div>
+
+    <table class="board" id="board">
+      <thead>
+        <tr>
+          <th data-key="rk" class="num">Rk<span class="arrow"></span></th>
+          <th data-key="n">Player<span class="arrow"></span></th>
+          <th data-key="pos">Pos<span class="arrow"></span></th>
+          <th data-key="bye" class="num">Bye<span class="arrow"></span></th>
+          <th data-key="adp" class="num">ADP<span class="arrow"></span></th>
+          <th data-key="adpd" class="num">&Delta;ADP<span class="arrow"></span></th>
+          <th data-key="pp" class="num">Proj Pts<span class="arrow"></span></th>
+          <th data-key="vor" class="num">VOR<span class="arrow"></span></th>
+          <th data-key="cons" class="num">Consist.<span class="arrow"></span></th>
+          <th data-key="inj" class="num">Injury<span class="arrow"></span></th>
+          <th data-key="age" class="num">Age<span class="arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty-state" id="empty" style="display:none;">No players match that search.</div>
+  </section>
+
+  <!-- ============ LINEUPS ============ -->
+  <section class="panel" id="panel-lineups">
+    <div class="lineups-toolbar">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="team-q" type="text" placeholder="Search a team or player&hellip;" autocomplete="off" />
+      </div>
+    </div>
+    <div class="team-grid" id="team-grid"></div>
+  </section>
+
+  <!-- ============ SCHEDULE ============ -->
+  <section class="panel" id="panel-schedule">
+    <div class="bye-panel">
+      <h3>2026 Bye Weeks</h3>
+      <div class="bye-grid" id="bye-grid"></div>
+    </div>
+    <div id="weeks-list"></div>
+  </section>
+
+  <!-- ============ NEWS ============ -->
+  <section class="panel" id="panel-news">
+    <p class="tab-intro">Live from ESPN's NFL wire &mdash; refreshed each time the board is rebuilt.</p>
+    <div class="news-list" id="news-list"></div>
+  </section>
+
+  <!-- ============ HIGHLIGHTS ============ -->
+  <section class="panel" id="panel-highlights">
+    <p class="tab-intro">No video player runs inside this page &mdash; every card opens a real YouTube search in a new tab. Nothing is curated or guaranteed to exist, especially before Week 1 kicks off.</p>
+    <div class="lineups-toolbar">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="hl-q" type="text" placeholder="Search a player&hellip;" autocomplete="off" />
+      </div>
+    </div>
+    <div class="hl-players" id="hl-players"></div>
+
+    <h3 class="section-head" id="hl-week-head">This week's games</h3>
+    <div class="hl-games" id="hl-games"></div>
+  </section>
+
+  <footer>
+    Built from <code>ffdraft-mcp</code>'s player model &mdash; five seasons of nflverse play-by-play, NGS separation, FantasyPros consensus ADP, and O-line/pace/schedule/injury factors, scored against your league's actual settings (12-team, full PPR, QB/2RB/2WR/TE/2FLEX/K/DST). Lineups are each team's officially filed depth chart, refreshed daily during camp. Schedule and bye weeks come straight from the NFL's published 2026 slate. &Delta;ADP is model rank subtracted from ADP: positive means the model has the player rated well ahead of where the market will draft them. This is a snapshot from the last data refresh &mdash; use the <code>on_the_clock</code> tool live during your draft for pick-by-pick recommendations that account for who's already gone.
+  </footer>
+</div>
+
+<script id="board-data" type="application/json">__BOARD_DATA__</script>
+<script id="lineups-data" type="application/json">__LINEUPS_DATA__</script>
+<script id="schedule-data" type="application/json">__SCHEDULE_DATA__</script>
+<script id="news-data" type="application/json">__NEWS_DATA__</script>
+<script>
+(function () {
+  var BOARD = JSON.parse(document.getElementById('board-data').textContent);
+  var LINEUPS = JSON.parse(document.getElementById('lineups-data').textContent);
+  var SCHED = JSON.parse(document.getElementById('schedule-data').textContent);
+  var NEWS = JSON.parse(document.getElementById('news-data').textContent);
+
+  var asOfDate = new Date(LINEUPS.asOf);
+  document.getElementById('asof-note').innerHTML =
+    'Lineups as of <b>' + asOfDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</b>';
+
+  /* ---------------- Tabs ---------------- */
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+
+  /* ---------------- Board ---------------- */
+  var state = { q: '', pos: 'ALL', valueOnly: false, sortKey: 'rk', sortDir: 1 };
+  var tbody = document.getElementById('tbody');
+  var emptyEl = document.getElementById('empty');
+  var visibleCountEl = document.getElementById('visible-count');
+
+  function riskClass(inj) {
+    if (inj == null) return 'risk-mid';
+    if (inj < 0.18) return 'risk-low';
+    if (inj < 0.30) return 'risk-mid';
+    return 'risk-high';
+  }
+  function deltaClass(d) {
+    if (d == null || Math.abs(d) < 3) return 'zero';
+    return d > 0 ? 'pos' : 'neg';
+  }
+  function fmt(v, suffix) {
+    if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '&mdash;';
+    return v + (suffix || '');
+  }
+
+  function detailHTML(p) {
+    function stat(label, value) {
+      var isNa = value === null || value === undefined || value === '';
+      return '<div class="dstat"><div class="dlabel">' + label + '</div><div class="dvalue' + (isNa ? ' na' : '') + '">' + (isNa ? '&mdash;' : value) + '</div></div>';
+    }
+    var parts = '';
+    parts += stat('Floor / Avg / Ceiling', (p.floor ?? '&mdash;') + ' / ' + (p.fpm ?? '&mdash;') + ' / ' + (p.ceil ?? '&mdash;') + ' ppg');
+    parts += stat('Expected games', p.gm != null ? p.gm + ' / 17' : null);
+    parts += stat(p.pos === 'RB' ? 'Run-block rank' : 'Pass-block rank', p.ol != null ? '#' + p.ol : null);
+    parts += stat('Team pace', p.ppg != null ? p.ppg + ' plays/gm' : null);
+    parts += stat('Schedule (z)', p.sos != null ? (p.sos > 0 ? '+' : '') + p.sos : null);
+    if (p.pos === 'WR' || p.pos === 'TE') {
+      parts += stat('Avg. separation', p.sep != null ? p.sep + ' yds' : null);
+      parts += stat('YPRR', p.yprr);
+      parts += stat('TPRR', p.tprr);
+    }
+    parts += stat('Red-zone TD rate', p.rztd != null ? (p.rztd * 100).toFixed(0) + '%' : null);
+    return '<div class="detail-grid">' + parts + '</div>';
+  }
+
+  function renderBoard() {
+    var q = state.q.trim().toLowerCase();
+    var rows = BOARD.filter(function (p) {
+      if (state.pos !== 'ALL' && p.pos !== state.pos) return false;
+      if (state.valueOnly && !(p.adpd != null && p.adpd >= 8)) return false;
+      if (q && p.n.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+
+    rows.sort(function (a, b) {
+      var k = state.sortKey, d = state.sortDir;
+      var av = a[k], bv = b[k];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'string') return av.localeCompare(bv) * d;
+      return (av - bv) * d;
+    });
+
+    visibleCountEl.textContent = rows.length;
+    emptyEl.style.display = rows.length ? 'none' : 'block';
+
+    var html = '';
+    rows.forEach(function (p, i) {
+      var rid = 'r' + i + '_' + p.rk;
+      html += '<tr class="row" data-id="' + rid + '">';
+      html += '<td class="rk"><b>' + p.rk + '</b></td>';
+      html += '<td><div class="name-cell"><span class="nm">' + p.n + '</span>' + (p.rook ? '<span class="rookie-flag">R</span>' : '') + '</div></td>';
+      html += '<td><span class="chip ' + p.pos + '">' + p.pr + '</span> <span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></td>';
+      html += '<td class="num bye-flag">' + fmt(p.bye) + '</td>';
+      html += '<td class="num">' + fmt(p.adp) + '</td>';
+      html += '<td class="num"><span class="delta ' + deltaClass(p.adpd) + '">' + (p.adpd != null ? (p.adpd > 0 ? '+' : '') + p.adpd : '&mdash;') + '</span></td>';
+      html += '<td class="num">' + fmt(p.pp) + '</td>';
+      html += '<td class="num">' + fmt(p.vor) + '</td>';
+      var consPct = p.cons != null ? Math.round(p.cons * 100) : null;
+      html += '<td class="num"><div class="cons-bar-wrap"><span class="cons-pct">' + (consPct != null ? consPct + '%' : '&mdash;') + '</span><div class="cons-bar"><i style="width:' + (consPct || 0) + '%"></i></div></div></td>';
+      var injPct = p.inj != null ? Math.round(p.inj * 100) : null;
+      html += '<td class="num"><span class="risk-pill ' + riskClass(p.inj) + '">' + (injPct != null ? injPct + '%' : '&mdash;') + '</span></td>';
+      html += '<td class="num">' + fmt(p.age) + '</td>';
+      html += '</tr>';
+      html += '<tr class="detail" data-id="' + rid + '"><td colspan="11">' + detailHTML(p) + '</td></tr>';
+    });
+    tbody.innerHTML = html;
+
+    tbody.querySelectorAll('tr.row').forEach(function (tr) {
+      tr.addEventListener('click', function () {
+        var id = tr.getAttribute('data-id');
+        var det = tbody.querySelector('tr.detail[data-id="' + id + '"]');
+        det.classList.toggle('open');
+      });
+    });
+  }
+
+  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value; renderBoard(); });
+  document.querySelectorAll('.pos-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.pos-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      state.pos = tab.getAttribute('data-pos');
+      renderBoard();
+    });
+  });
+  document.getElementById('value-toggle').addEventListener('click', function () {
+    state.valueOnly = !state.valueOnly;
+    this.classList.toggle('active', state.valueOnly);
+    renderBoard();
+  });
+  document.querySelectorAll('#board thead th').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var key = th.getAttribute('data-key');
+      state.sortDir = (state.sortKey === key) ? state.sortDir * -1 : 1;
+      state.sortKey = key;
+      document.querySelectorAll('#board thead th').forEach(function (t) { t.classList.remove('sorted'); t.querySelector('.arrow').textContent = ''; });
+      th.classList.add('sorted');
+      th.querySelector('.arrow').textContent = state.sortDir === 1 ? '▴' : '▾';
+      renderBoard();
+    });
+  });
+  renderBoard();
+
+  /* ---------------- Lineups ---------------- */
+  var POS_ORDER = ['QB', 'RB', 'WR', 'TE', 'FB'];
+  var teamGrid = document.getElementById('team-grid');
+
+  function renderLineups(filter) {
+    filter = (filter || '').trim().toLowerCase();
+    var teams = Object.keys(LINEUPS.teams).sort();
+    var html = '';
+    teams.forEach(function (team) {
+      var positions = LINEUPS.teams[team];
+      var haystack = team.toLowerCase();
+      POS_ORDER.forEach(function (pos) {
+        (positions[pos] || []).forEach(function (pl) { haystack += ' ' + pl.n.toLowerCase(); });
+      });
+      if (filter && haystack.indexOf(filter) === -1) return;
+
+      var byeMatch = SCHED.byes[team];
+      html += '<div class="team-card">';
+      html += '<div class="team-card-head"><span class="tname">' + team + '</span><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span></div>';
+      POS_ORDER.forEach(function (pos) {
+        var players = positions[pos];
+        if (!players || !players.length) return;
+        var names = players.slice(0, 3).map(function (pl, idx) {
+          return '<span class="' + (idx === 0 ? 'starter' : 'backup') + '">' + pl.n + '</span>';
+        }).join('<span class="sep">&middot;</span>');
+        html += '<div class="depth-row"><span class="chip ' + pos + '">' + pos + '</span><span class="dplayers">' + names + '</span></div>';
+      });
+      html += '</div>';
+    });
+    teamGrid.innerHTML = html || '<div class="empty-state">No matches.</div>';
+  }
+  document.getElementById('team-q').addEventListener('input', function (e) { renderLineups(e.target.value); });
+  renderLineups('');
+
+  /* ---------------- Schedule ---------------- */
+  var byeGrid = document.getElementById('bye-grid');
+  var byeHtml = '';
+  Object.keys(SCHED.byes).sort(function (a, b) { return (SCHED.byes[a] || 99) - (SCHED.byes[b] || 99) || a.localeCompare(b); })
+    .forEach(function (team) {
+      byeHtml += '<div class="bye-item"><span>' + team + '</span><span class="bwk">Wk ' + (SCHED.byes[team] || '&mdash;') + '</span></div>';
+    });
+  byeGrid.innerHTML = byeHtml;
+
+  var weeksList = document.getElementById('weeks-list');
+  var byWeek = {};
+  SCHED.games.forEach(function (g) { (byWeek[g.wk] = byWeek[g.wk] || []).push(g); });
+  var weekHtml = '';
+  Object.keys(byWeek).map(Number).sort(function (a, b) { return a - b; }).forEach(function (wk) {
+    var games = byWeek[wk];
+    weekHtml += '<div class="week-block' + (wk > 1 ? ' collapsed' : '') + '" data-wk="' + wk + '">';
+    weekHtml += '<div class="week-head"><span class="caret">&#9660;</span>Week ' + wk + '<span class="wcount">(' + games.length + ' games)</span></div>';
+    weekHtml += '<div class="week-games">';
+    games.forEach(function (g) {
+      var when = (g.d ? g.d.slice(5) : '') + (g.t ? ' &middot; ' + g.t : '');
+      weekHtml += '<div class="game-row' + (g.div ? ' div' : '') + '">';
+      weekHtml += '<span class="game-teams">' + g.away + ' @ ' + g.home + '</span>';
+      weekHtml += '<span class="game-when">' + when + '</span>';
+      weekHtml += '</div>';
+    });
+    weekHtml += '</div></div>';
+  });
+  weeksList.innerHTML = weekHtml;
+
+  weeksList.querySelectorAll('.week-head').forEach(function (h) {
+    h.addEventListener('click', function () { h.closest('.week-block').classList.toggle('collapsed'); });
+  });
+
+  /* ---------------- News ---------------- */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  var newsList = document.getElementById('news-list');
+  function relTime(pubDateStr) {
+    var d = new Date(pubDateStr);
+    if (isNaN(d.getTime())) return '';
+    var mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+  var newsHtml = '';
+  NEWS.forEach(function (n) {
+    newsHtml += '<a class="news-card" href="' + esc(n.l) + '" target="_blank" rel="noopener">';
+    newsHtml += '<div class="nhead"><span class="ntitle">' + esc(n.t) + '</span><span class="nmeta">' + esc(n.src || 'ESPN') + ' &middot; ' + relTime(n.p) + '</span></div>';
+    if (n.d) newsHtml += '<div class="ndesc">' + esc(n.d) + '</div>';
+    newsHtml += '</a>';
+  });
+  newsList.innerHTML = newsHtml || '<div class="empty-state">No headlines available right now.</div>';
+
+  /* ---------------- Highlights ---------------- */
+  function ytSearch(q) { return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q); }
+
+  var hlPlayers = document.getElementById('hl-players');
+  function renderHlPlayers(q) {
+    q = (q || '').trim();
+    if (!q) { hlPlayers.innerHTML = ''; return; }
+    var ql = q.toLowerCase();
+    var matches = BOARD.filter(function (p) { return p.n.toLowerCase().indexOf(ql) !== -1; }).slice(0, 12);
+    var html = '';
+    matches.forEach(function (p) {
+      html += '<div class="hl-card"><div class="hl-who"><span class="chip ' + p.pos + '">' + p.pos + '</span><span class="hl-name">' + p.n + '</span><span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></div>';
+      html += '<a class="hl-watch" href="' + ytSearch(p.n + ' highlights ' + (p.tm || '') + ' NFL') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
+    });
+    hlPlayers.innerHTML = html || '<div class="empty-state">No players match that search.</div>';
+  }
+  document.getElementById('hl-q').addEventListener('input', function (e) { renderHlPlayers(e.target.value); });
+
+  var hlGames = document.getElementById('hl-games');
+  var hlWeekHead = document.getElementById('hl-week-head');
+  (function renderHlGames() {
+    var now = new Date();
+    var upcoming = SCHED.games.filter(function (g) { return g.d && new Date(g.d) >= new Date(now.toDateString()); });
+    var targetWeek = upcoming.length ? upcoming[0].wk : (SCHED.games[SCHED.games.length - 1] || {}).wk;
+    var games = SCHED.games.filter(function (g) { return g.wk === targetWeek; });
+    hlWeekHead.textContent = games.length ? 'Week ' + targetWeek + ' games' : 'This week\'s games';
+    var html = '';
+    games.forEach(function (g) {
+      html += '<div class="hl-game-card"><span class="hgt">' + g.away + ' @ ' + g.home + '</span>';
+      html += '<a class="hl-watch" href="' + ytSearch(g.away + ' vs ' + g.home + ' highlights') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
+    });
+    hlGames.innerHTML = html || '<div class="empty-state">No games scheduled.</div>';
+  })();
+})();
+</script>
+</body>
+</html>
