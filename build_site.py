@@ -202,7 +202,7 @@ def previous_news():
 
 
 def build_team_logos():
-    """Official team logo URLs from nflverse's community-maintained team manifest --
+    """Official team logo/color data from nflverse's community-maintained team manifest --
     same lineage as every other data source on this site, not hand-picked links."""
     current = ["ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN",
                "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA",
@@ -211,7 +211,8 @@ def build_team_logos():
     try:
         df = pd.read_csv("https://raw.githubusercontent.com/nflverse/nflfastR-data/master/teams_colors_logos.csv")
         d = df[df["team_abbr"].isin(current)].set_index("team_abbr")
-        return {t: d.loc[t, "team_logo_espn"] for t in current if t in d.index}
+        return {t: {"logo": d.loc[t, "team_logo_espn"], "c1": d.loc[t, "team_color"], "c2": d.loc[t, "team_color2"]}
+                for t in current if t in d.index}
     except Exception as exc:
         print(f"team logo fetch failed ({type(exc).__name__}: {exc}); logos will be blank")
         return {}

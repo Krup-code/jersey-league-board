@@ -357,6 +357,44 @@
   }
   .unit-label:first-child { margin-top: 0; }
 
+  /* ---------- Formation field ---------- */
+  .field-wrap { margin-bottom: 14px; }
+  .field-legend {
+    display: flex; justify-content: space-between; font-family: var(--font-data);
+    font-size: 10px; letter-spacing: 0.4px; color: var(--muted); margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .field {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 11;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background-color: #2c6e3f;
+    background-image:
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 10%);
+  }
+  .field .los {
+    position: absolute; left: 0; right: 0; top: 56%; height: 2px;
+    background: rgba(255,255,255,0.55);
+  }
+  .field .los::after {
+    content: 'LOS'; position: absolute; right: 4px; top: -14px;
+    font-family: var(--font-data); font-size: 8px; color: rgba(255,255,255,0.65);
+  }
+  .fmarker {
+    position: absolute; transform: translate(-50%, -50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-data); font-size: 9.5px; font-weight: 700; color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.85);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    cursor: default;
+  }
+  @media (min-width: 480px) { .fmarker { width: 34px; height: 34px; font-size: 10.5px; } }
+
   /* ---------- Win probability ---------- */
   .wp-bar { display: flex; align-items: center; gap: 6px; }
   .wp-track {
@@ -645,11 +683,15 @@
 
   /* ---------------- Team logos & starred teams (shared) ---------------- */
   function logoImg(team, size) {
-    var url = TEAMLOGOS[team];
-    if (!url) return '';
+    var meta = TEAMLOGOS[team];
+    if (!meta || !meta.logo) return '';
     size = size || 18;
-    return '<img src="' + url + '" alt="" width="' + size + '" height="' + size + '" loading="lazy" ' +
+    return '<img src="' + meta.logo + '" alt="" width="' + size + '" height="' + size + '" loading="lazy" ' +
       'style="vertical-align:middle;object-fit:contain;flex-shrink:0;" onerror="this.style.display=\'none\'">';
+  }
+  function teamColors(team) {
+    var meta = TEAMLOGOS[team] || {};
+    return { c1: meta.c1 || '#5c6b60', c2: meta.c2 || '#8fa08f' };
   }
 
   var STAR_KEY = 'jlb_starred_teams';
@@ -822,6 +864,45 @@
   var teamGrid = document.getElementById('team-grid');
   var expandedTeams = {};
 
+  var OFF_COORDS = {
+    LT: [32, 52], LG: [41, 52], C: [50, 52], RG: [59, 52], RT: [68, 52],
+    TE: [78, 53], QB: [50, 62], RB: [50, 74], FB: [39, 66],
+    WR_L: [7, 51], WR_R: [93, 51], WR_SLOT: [20, 56],
+  };
+  var DEF_COORDS = {
+    LDE: [28, 43], LDT: [42, 43], NT: [50, 43], RDT: [58, 43], RDE: [72, 43],
+    WLB: [24, 34], MLB: [50, 33], SLB: [76, 34], LILB: [43, 34], RILB: [57, 34],
+    LCB: [10, 24], RCB: [90, 24], NB: [50, 27], SS: [37, 13], FS: [63, 13],
+  };
+
+  function fieldMarker(label, playerName, xy, color) {
+    if (!playerName) return '';
+    return '<div class="fmarker" style="left:' + xy[0] + '%;top:' + xy[1] + '%;background:' + color + ';" title="' + esc(label) + ': ' + esc(playerName) + '">' + label + '</div>';
+  }
+
+  function fieldHTML(team, units) {
+    var colors = teamColors(team);
+    var starter = function (u, pos) { return (units[u][pos] || [])[0]; };
+    var html = '';
+
+    var wrList = units.OFF['WR'] || [];
+    var wrSlots = [['WR_L', wrList[0]], ['WR_R', wrList[1]], ['WR_SLOT', wrList[2]]];
+    wrSlots.forEach(function (pair) {
+      if (pair[1]) html += fieldMarker('WR', pair[1].n, OFF_COORDS[pair[0]], colors.c1);
+    });
+    ['LT', 'LG', 'C', 'RG', 'RT', 'TE', 'QB', 'RB', 'FB'].forEach(function (pos) {
+      var p = starter('OFF', pos);
+      if (p) html += fieldMarker(pos, p.n, OFF_COORDS[pos], colors.c1);
+    });
+    Object.keys(DEF_COORDS).forEach(function (pos) {
+      var p = starter('DEF', pos);
+      if (p) html += fieldMarker(pos, p.n, DEF_COORDS[pos], colors.c2);
+    });
+
+    return '<div class="field-wrap"><div class="field-legend"><span>Defense</span><span>Offense</span></div>' +
+      '<div class="field"><div class="los"></div>' + html + '</div></div>';
+  }
+
   function posRow(pos, players) {
     var names = players.slice(0, 3).map(function (pl, idx) {
       return '<span class="' + (idx === 0 ? 'starter' : 'backup') + '">' + esc(pl.n) + '</span>';
@@ -851,6 +932,7 @@
       html += '<div class="team-card' + (isStarred(team) ? ' is-starred' : '') + (expandedTeams[team] ? ' expanded' : '') + '" data-team="' + team + '">';
       html += '<div class="team-card-head"><span class="tname" style="display:inline-flex;align-items:center;gap:7px;">' + starBtn(team) + logoImg(team, 24) + team + '</span><span style="display:flex;align-items:center;gap:8px;"><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span><span class="texpand">&#9660;</span></span></div>';
       html += '<div class="team-card-body">';
+      html += fieldHTML(team, units);
       Object.keys(UNIT_ORDER).forEach(function (u) {
         var rows = '';
         UNIT_ORDER[u].forEach(function (pos) {
