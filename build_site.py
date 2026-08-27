@@ -106,11 +106,34 @@ def clean_html(s):
     return re.sub(r"<[^>]+>", "", s).strip()
 
 
+def previous_news():
+    """Best-effort fallback: pull the news payload out of the last built index.html.
+
+    Some hosts (ESPN included) rate-limit or block requests from cloud/CI IP ranges
+    even with a normal User-Agent, which is IP-reputation based rather than anything
+    fixable in the request itself. Rather than fail the whole refresh -- or silently
+    wipe the News tab -- fall back to yesterday's real headlines so the page still
+    shows something genuine, just possibly a day stale.
+    """
+    try:
+        with open(OUTPUT_PATH) as f:
+            html = f.read()
+        m = re.search(r'<script id="news-data"[^>]*>(.*?)</script>', html, re.S)
+        return json.loads(m.group(1)) if m else []
+    except Exception:
+        return []
+
+
 def build_news():
-    resp = requests.get("https://www.espn.com/espn/rss/nfl/news", timeout=15,
-                         headers={"User-Agent": "Mozilla/5.0"})
-    resp.raise_for_status()
-    root = ET.fromstring(resp.text)
+    try:
+        resp = requests.get("https://www.espn.com/espn/rss/nfl/news", timeout=15,
+                             headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        root = ET.fromstring(resp.text)
+    except Exception as exc:
+        print(f"news fetch failed ({type(exc).__name__}: {exc}); falling back to previous build's headlines")
+        return previous_news()
+
     news = []
     for item in root.findall(".//item"):
         news.append({
