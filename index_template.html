@@ -270,6 +270,7 @@
     padding: 2px 6px;
     border-radius: 5px;
     color: white;
+    background: var(--muted);
     min-width: 28px;
     text-align: center;
   }
@@ -334,6 +335,30 @@
   .depth-row .dplayers .backup { color: var(--muted); }
   .depth-row .dplayers .sep { color: var(--border); margin: 0 2px; }
 
+  .team-card { cursor: pointer; }
+  .team-card-head .texpand { font-size: 11px; color: var(--muted); transition: transform 0.15s; }
+  .team-card.expanded .texpand { transform: rotate(180deg); }
+  .team-card-body { display: none; }
+  .team-card.expanded .team-card-body { display: block; }
+
+  .unit-block { margin-top: 10px; }
+  .unit-block:first-child { margin-top: 0; }
+  .unit-label {
+    font-family: var(--font-ui); font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--accent); margin: 10px 0 4px;
+  }
+  .unit-label:first-child { margin-top: 0; }
+
+  /* ---------- Win probability ---------- */
+  .wp-bar { display: flex; align-items: center; gap: 6px; }
+  .wp-track {
+    width: 60px; height: 6px; border-radius: 3px; overflow: hidden;
+    background: var(--bad); border: 1px solid var(--border); display: flex;
+  }
+  .wp-track i { display: block; height: 100%; background: var(--good); }
+  .wp-label { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .wp-na { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); }
+
   /* ---------- Schedule tab ---------- */
   .bye-panel {
     background: var(--surface);
@@ -374,6 +399,17 @@
   .game-row.div { border-left: 3px solid var(--accent); }
   .game-teams { font-family: var(--font-data); font-weight: 600; }
   .game-when { font-family: var(--font-data); font-size: 11px; color: var(--muted); }
+  .game-row-full { flex-direction: column; align-items: stretch; gap: 4px; }
+  .game-row-full .game-top { display: flex; justify-content: space-between; align-items: center; }
+  .game-row-full .game-odds { display: flex; justify-content: space-between; align-items: center; }
+  .game-line { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); }
+
+  /* ---------- Team Stats tab ---------- */
+  #teamstats-table thead th { top: 78px; }
+  .fpa-chip {
+    font-family: var(--font-data); font-size: 10px; font-weight: 700; padding: 1px 5px;
+    border-radius: 4px; color: white; margin-right: 3px;
+  }
 
   /* ---------- News & Highlights ---------- */
   .tab-intro {
@@ -471,6 +507,7 @@
       <button class="tab-btn active" data-tab="board">Draft Board</button>
       <button class="tab-btn" data-tab="lineups">Lineups</button>
       <button class="tab-btn" data-tab="schedule">Schedule &amp; Byes</button>
+      <button class="tab-btn" data-tab="teamstats">Team Stats</button>
       <button class="tab-btn" data-tab="news">News</button>
       <button class="tab-btn" data-tab="highlights">Highlights</button>
     </div>
@@ -501,8 +538,8 @@
           <th data-key="n">Player<span class="arrow"></span></th>
           <th data-key="pos">Pos<span class="arrow"></span></th>
           <th data-key="bye" class="num">Bye<span class="arrow"></span></th>
-          <th data-key="adp" class="num">ADP<span class="arrow"></span></th>
-          <th data-key="adpd" class="num">&Delta;ADP<span class="arrow"></span></th>
+          <th data-key="adp" class="num" title="Average Draft Position: the consensus round/pick a player goes across real drafts.">ADP<span class="arrow"></span></th>
+          <th data-key="adpd" class="num" title="Model rank subtracted from ADP. Positive = the model likes this player more than the market does (a value pick). Negative = the market is drafting them earlier than the model would.">&Delta;ADP<span class="arrow"></span></th>
           <th data-key="pp" class="num">Proj Pts<span class="arrow"></span></th>
           <th data-key="vor" class="num">VOR<span class="arrow"></span></th>
           <th data-key="cons" class="num">Consist.<span class="arrow"></span></th>
@@ -535,6 +572,28 @@
     <div id="weeks-list"></div>
   </section>
 
+  <!-- ============ TEAM STATS ============ -->
+  <section class="panel" id="panel-teamstats">
+    <p class="tab-intro">Real final standings from the last completed season, plus the model's own O-line, pace, and defensive ratings computed from raw play-by-play &mdash; not a copied ranking table. The 2026 season hasn't been played yet, so this is last year's form.</p>
+    <table class="board" id="teamstats-table">
+      <thead>
+        <tr>
+          <th data-key="tm">Team<span class="arrow"></span></th>
+          <th data-key="wpct" class="num">Record<span class="arrow"></span></th>
+          <th data-key="pf" class="num">PF/G<span class="arrow"></span></th>
+          <th data-key="pa" class="num">PA/G<span class="arrow"></span></th>
+          <th data-key="ppg" class="num">Plays/Gm<span class="arrow"></span></th>
+          <th data-key="pass_pct" class="num">Pass%<span class="arrow"></span></th>
+          <th data-key="rbk" class="num" title="Run block rank, 1 = best">Run Blk<span class="arrow"></span></th>
+          <th data-key="pbk" class="num" title="Pass block rank, 1 = best">Pass Blk<span class="arrow"></span></th>
+          <th data-key="drk" class="num" title="Overall defensive EPA rank, 1 = best">Def Rk<span class="arrow"></span></th>
+          <th data-key="tough">Toughest Vs.</th>
+        </tr>
+      </thead>
+      <tbody id="teamstats-tbody"></tbody>
+    </table>
+  </section>
+
   <!-- ============ NEWS ============ -->
   <section class="panel" id="panel-news">
     <p class="tab-intro">Live from ESPN's NFL wire &mdash; refreshed each time the board is rebuilt.</p>
@@ -557,7 +616,7 @@
   </section>
 
   <footer>
-    Built from <code>ffdraft-mcp</code>'s player model &mdash; five seasons of nflverse play-by-play, NGS separation, FantasyPros consensus ADP, and O-line/pace/schedule/injury factors, scored against your league's actual settings (12-team, full PPR, QB/2RB/2WR/TE/2FLEX/K/DST). Lineups are each team's officially filed depth chart, refreshed daily during camp. Schedule and bye weeks come straight from the NFL's published 2026 slate. &Delta;ADP is model rank subtracted from ADP: positive means the model has the player rated well ahead of where the market will draft them. This is a snapshot from the last data refresh &mdash; use the <code>on_the_clock</code> tool live during your draft for pick-by-pick recommendations that account for who's already gone.
+    Built from <code>ffdraft-mcp</code>'s player model &mdash; five seasons of nflverse play-by-play, NGS separation, FantasyPros consensus ADP, and O-line/pace/schedule/injury factors, scored against your league's actual settings (12-team, full PPR, QB/2RB/2WR/TE/2FLEX/K/DST). Lineups show every position on the field &mdash; offense, defense, and special teams &mdash; from each team's officially filed depth chart, refreshed daily during camp. Schedule and bye weeks come straight from the NFL's published 2026 slate; win probabilities are the real market's, derived from posted moneylines (only available once a sportsbook has priced that week &mdash; shown as "odds not posted yet" otherwise, never guessed). Team Stats reflects the last completed season since 2026 hasn't kicked off. ADP is Average Draft Position &mdash; the market consensus of where a player gets picked; &Delta;ADP is model rank subtracted from ADP, so positive means the model likes the player more than the market does. This is a snapshot from the last data refresh &mdash; use the <code>on_the_clock</code> tool live during your draft for pick-by-pick recommendations that account for who's already gone.
   </footer>
 </div>
 
@@ -565,12 +624,14 @@
 <script id="lineups-data" type="application/json">__LINEUPS_DATA__</script>
 <script id="schedule-data" type="application/json">__SCHEDULE_DATA__</script>
 <script id="news-data" type="application/json">__NEWS_DATA__</script>
+<script id="teamstats-data" type="application/json">__TEAMSTATS_DATA__</script>
 <script>
 (function () {
   var BOARD = JSON.parse(document.getElementById('board-data').textContent);
   var LINEUPS = JSON.parse(document.getElementById('lineups-data').textContent);
   var SCHED = JSON.parse(document.getElementById('schedule-data').textContent);
   var NEWS = JSON.parse(document.getElementById('news-data').textContent);
+  var TEAMSTATS = JSON.parse(document.getElementById('teamstats-data').textContent);
 
   var asOfDate = new Date(LINEUPS.asOf);
   document.getElementById('asof-note').innerHTML =
@@ -708,38 +769,74 @@
   renderBoard();
 
   /* ---------------- Lineups ---------------- */
-  var POS_ORDER = ['QB', 'RB', 'WR', 'TE', 'FB'];
+  var UNIT_ORDER = {
+    OFF: ['QB', 'RB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT'],
+    DEF: ['LDE', 'LDT', 'NT', 'RDT', 'RDE', 'WLB', 'MLB', 'SLB', 'LILB', 'RILB', 'LCB', 'RCB', 'NB', 'SS', 'FS'],
+    ST: ['PK', 'P', 'H', 'LS', 'PR', 'KR'],
+  };
+  var UNIT_LABEL = { OFF: 'Offense', DEF: 'Defense', ST: 'Special Teams' };
   var teamGrid = document.getElementById('team-grid');
+
+  function posRow(pos, players) {
+    var names = players.slice(0, 3).map(function (pl, idx) {
+      return '<span class="' + (idx === 0 ? 'starter' : 'backup') + '">' + esc(pl.n) + '</span>';
+    }).join('<span class="sep">&middot;</span>');
+    return '<div class="depth-row"><span class="chip ' + pos + '">' + pos + '</span><span class="dplayers">' + names + '</span></div>';
+  }
 
   function renderLineups(filter) {
     filter = (filter || '').trim().toLowerCase();
     var teams = Object.keys(LINEUPS.teams).sort();
     var html = '';
     teams.forEach(function (team) {
-      var positions = LINEUPS.teams[team];
+      var units = LINEUPS.teams[team];
       var haystack = team.toLowerCase();
-      POS_ORDER.forEach(function (pos) {
-        (positions[pos] || []).forEach(function (pl) { haystack += ' ' + pl.n.toLowerCase(); });
+      Object.keys(UNIT_ORDER).forEach(function (u) {
+        UNIT_ORDER[u].forEach(function (pos) {
+          (units[u][pos] || []).forEach(function (pl) { haystack += ' ' + pl.n.toLowerCase(); });
+        });
       });
       if (filter && haystack.indexOf(filter) === -1) return;
 
       var byeMatch = SCHED.byes[team];
       html += '<div class="team-card">';
-      html += '<div class="team-card-head"><span class="tname">' + team + '</span><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span></div>';
-      POS_ORDER.forEach(function (pos) {
-        var players = positions[pos];
-        if (!players || !players.length) return;
-        var names = players.slice(0, 3).map(function (pl, idx) {
-          return '<span class="' + (idx === 0 ? 'starter' : 'backup') + '">' + pl.n + '</span>';
-        }).join('<span class="sep">&middot;</span>');
-        html += '<div class="depth-row"><span class="chip ' + pos + '">' + pos + '</span><span class="dplayers">' + names + '</span></div>';
+      html += '<div class="team-card-head"><span class="tname">' + team + '</span><span style="display:flex;align-items:center;gap:8px;"><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span><span class="texpand">&#9660;</span></span></div>';
+      html += '<div class="team-card-body">';
+      Object.keys(UNIT_ORDER).forEach(function (u) {
+        var rows = '';
+        UNIT_ORDER[u].forEach(function (pos) {
+          var players = units[u][pos];
+          if (players && players.length) rows += posRow(pos, players);
+        });
+        if (rows) html += '<div class="unit-block"><div class="unit-label">' + UNIT_LABEL[u] + '</div>' + rows + '</div>';
       });
-      html += '</div>';
+      html += '</div></div>';
     });
     teamGrid.innerHTML = html || '<div class="empty-state">No matches.</div>';
+
+    teamGrid.querySelectorAll('.team-card').forEach(function (card) {
+      card.addEventListener('click', function () { card.classList.toggle('expanded'); });
+    });
   }
   document.getElementById('team-q').addEventListener('input', function (e) { renderLineups(e.target.value); });
   renderLineups('');
+
+  /* ---------------- Win probability (shared) ---------------- */
+  function wpBarHTML(g) {
+    if (g.hwp == null) return '<span class="wp-na">odds not posted yet</span>';
+    var awp = 100 - g.hwp;
+    var favTeam = g.hwp >= awp ? g.home : g.away;
+    var favPct = Math.max(g.hwp, awp);
+    return '<div class="wp-bar"><div class="wp-track"><i style="width:' + g.hwp + '%"></i></div>' +
+      '<span class="wp-label">' + favTeam + ' ' + favPct + '%</span></div>';
+  }
+  function oddsLineHTML(g) {
+    if (g.hwp == null) return '';
+    var parts = [];
+    if (g.spread != null) parts.push('spread ' + (g.spread > 0 ? '+' : '') + g.spread);
+    if (g.total != null) parts.push('o/u ' + g.total);
+    return parts.length ? '<span class="game-line">' + parts.join(' &middot; ') + '</span>' : '';
+  }
 
   /* ---------------- Schedule ---------------- */
   var byeGrid = document.getElementById('bye-grid');
@@ -761,9 +858,9 @@
     weekHtml += '<div class="week-games">';
     games.forEach(function (g) {
       var when = (g.d ? g.d.slice(5) : '') + (g.t ? ' &middot; ' + g.t : '');
-      weekHtml += '<div class="game-row' + (g.div ? ' div' : '') + '">';
-      weekHtml += '<span class="game-teams">' + g.away + ' @ ' + g.home + '</span>';
-      weekHtml += '<span class="game-when">' + when + '</span>';
+      weekHtml += '<div class="game-row game-row-full' + (g.div ? ' div' : '') + '">';
+      weekHtml += '<div class="game-top"><span class="game-teams">' + g.away + ' @ ' + g.home + '</span><span class="game-when">' + when + '</span></div>';
+      weekHtml += '<div class="game-odds">' + wpBarHTML(g) + oddsLineHTML(g) + '</div>';
       weekHtml += '</div>';
     });
     weekHtml += '</div></div>';
@@ -827,11 +924,66 @@
     hlWeekHead.textContent = games.length ? 'Week ' + targetWeek + ' games' : 'This week\'s games';
     var html = '';
     games.forEach(function (g) {
-      html += '<div class="hl-game-card"><span class="hgt">' + g.away + ' @ ' + g.home + '</span>';
+      html += '<div class="hl-game-card" style="flex-direction:column;align-items:stretch;gap:6px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="hgt">' + g.away + ' @ ' + g.home + '</span>';
       html += '<a class="hl-watch" href="' + ytSearch(g.away + ' vs ' + g.home + ' highlights') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
+      html += wpBarHTML(g) + '</div>';
     });
     hlGames.innerHTML = html || '<div class="empty-state">No games scheduled.</div>';
   })();
+
+  /* ---------------- Team Stats ---------------- */
+  var tsState = { sortKey: 'w', sortDir: -1 };
+  var tsTbody = document.getElementById('teamstats-tbody');
+  function fpaChips(fpa) {
+    if (!fpa) return '';
+    var entries = Object.keys(fpa).map(function (pos) { return [pos, fpa[pos]]; })
+      .sort(function (a, b) { return a[1] - b[1]; }).slice(0, 2);
+    return entries.map(function (e) {
+      return '<span class="fpa-chip chip ' + e[0] + '">' + e[0] + '</span>';
+    }).join('');
+  }
+  function renderTeamStats() {
+    var rows = TEAMSTATS.slice();
+    rows.forEach(function (r) { r.wpct = r.w + r.l + r.t > 0 ? r.w / (r.w + r.l + r.t) : 0; });
+    rows.sort(function (a, b) {
+      var k = tsState.sortKey, d = tsState.sortDir;
+      var av = a[k], bv = b[k];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'string') return av.localeCompare(bv) * d;
+      return (av - bv) * d;
+    });
+    var html = '';
+    rows.forEach(function (t) {
+      html += '<tr>';
+      html += '<td><span class="nm" style="font-weight:600;">' + t.tm + '</span></td>';
+      html += '<td class="num">' + t.w + '-' + t.l + (t.t ? '-' + t.t : '') + '</td>';
+      html += '<td class="num">' + fmt(t.pf) + '</td>';
+      html += '<td class="num">' + fmt(t.pa) + '</td>';
+      html += '<td class="num">' + fmt(t.ppg) + '</td>';
+      html += '<td class="num">' + (t.pass_pct != null ? t.pass_pct + '%' : '&mdash;') + '</td>';
+      html += '<td class="num">' + fmt(t.rbk) + '</td>';
+      html += '<td class="num">' + fmt(t.pbk) + '</td>';
+      html += '<td class="num">' + fmt(t.drk) + '</td>';
+      html += '<td>' + fpaChips(t.fpa) + '</td>';
+      html += '</tr>';
+    });
+    tsTbody.innerHTML = html;
+  }
+  document.querySelectorAll('#teamstats-table thead th').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var key = th.getAttribute('data-key');
+      tsState.sortDir = (tsState.sortKey === key) ? tsState.sortDir * -1 : -1;
+      tsState.sortKey = key;
+      document.querySelectorAll('#teamstats-table thead th').forEach(function (t) { t.classList.remove('sorted'); t.querySelector('.arrow') && (t.querySelector('.arrow').textContent = ''); });
+      th.classList.add('sorted');
+      if (th.querySelector('.arrow')) th.querySelector('.arrow').textContent = tsState.sortDir === 1 ? '▴' : '▾';
+      renderTeamStats();
+    });
+  });
+  renderTeamStats();
 })();
 </script>
 </body>

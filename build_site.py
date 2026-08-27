@@ -11,9 +11,18 @@ import requests
 from ffdraft.config import LeagueSettings, ModelWeights, Scoring
 from ffdraft.model import build_player_table, project
 from ffdraft.board import attach_adp, load_adp
+from ffdraft import features, sources
 
 TEMPLATE_PATH = "index_template.html"
 OUTPUT_PATH = "index.html"
+
+OFFENSE_ORDER = ["QB", "RB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT"]
+DEFENSE_ORDER = ["LDE", "LDT", "NT", "RDT", "RDE", "WLB", "MLB", "SLB", "LILB", "RILB",
+                  "LCB", "RCB", "NB", "SS", "FS"]
+SPECIAL_ORDER = ["PK", "P", "H", "LS", "PR", "KR"]
+UNIT_OF = ({p: "OFF" for p in OFFENSE_ORDER}
+           | {p: "DEF" for p in DEFENSE_ORDER}
+           | {p: "ST" for p in SPECIAL_ORDER})
 
 LEAGUE = LeagueSettings(
     name="jersey league",
@@ -59,35 +68,50 @@ def build_board_rows():
 
 
 def build_lineups():
+    """Full offense/defense/special-teams depth chart, every position on the field."""
     dc = pd.read_parquet("https://github.com/nflverse/nflverse-data/releases/download/depth_charts/depth_charts_2026.parquet")
     latest = dc["dt"].max()
     dc = dc[dc["dt"] == latest]
-    dc = dc[dc["pos_abb"].isin(["QB", "RB", "WR", "TE", "FB"])]
+    dc = dc[dc["pos_abb"].isin(list(UNIT_OF.keys()))]
     dc = dc.dropna(subset=["player_name"])
     dc = dc.sort_values(["team", "pos_abb", "pos_rank"])
-    dc = dc.groupby(["team", "pos_abb"]).head(4)
+    dc = dc.groupby(["team", "pos_abb"]).head(3)
 
     lineups = {}
     for team, grp in dc.groupby("team"):
-        lineups[team] = {}
+        lineups[team] = {"OFF": {}, "DEF": {}, "ST": {}}
         for pos, pgrp in grp.groupby("pos_abb"):
-            lineups[team][pos] = [
+            unit = UNIT_OF[pos]
+            lineups[team][unit][pos] = [
                 {"rk": int(row["pos_rank"]), "n": row["player_name"]}
                 for _, row in pgrp.sort_values("pos_rank").iterrows()
             ]
     return latest, lineups
 
 
+def implied_prob(moneyline):
+    if moneyline is None or (isinstance(moneyline, float) and math.isnan(moneyline)):
+        return None
+    return (-moneyline / (-moneyline + 100)) if moneyline < 0 else (100 / (moneyline + 100))
+
+
 def build_schedule_and_byes():
-    from ffdraft import sources
     sc = sources.schedules()
     sc = sc[(sc["season"] == 2026) & (sc["game_type"] == "REG")].copy()
 
     games = []
     for _, rr in sc.sort_values(["week", "gameday", "gametime"]).iterrows():
+        home_p = implied_prob(rr["home_moneyline"])
+        away_p = implied_prob(rr["away_moneyline"])
+        hwp = None
+        if home_p is not None and away_p is not None and (home_p + away_p) > 0:
+            hwp = round(100 * home_p / (home_p + away_p))
         games.append({
             "wk": int(rr["week"]), "d": rr["gameday"], "wd": rr["weekday"], "t": rr["gametime"],
             "away": rr["away_team"], "home": rr["home_team"], "div": bool(rr["div_game"]),
+            "hwp": hwp,
+            "spread": r(rr["spread_line"], 1),
+            "total": r(rr["total_line"], 1),
         })
 
     all_teams = sorted(set(sc["home_team"]) | set(sc["away_team"]))
@@ -97,6 +121,59 @@ def build_schedule_and_byes():
         bye = sorted(set(range(1, 19)) - played)
         byes[team] = bye[0] if bye else None
     return games, byes
+
+
+def build_team_stats():
+    """Real 2025 final standings (last completed season) plus the model's own
+    O-line/pace/defense ratings, computed from raw plays rather than a ranking site."""
+    pbp = sources.play_by_play(seasons=[2021, 2022, 2023, 2024, 2025])
+    ol = features.oline_ratings(pbp)
+    pace = features.team_pace_and_split(pbp)
+    dfn = features.defense_ratings(pbp, sources.weekly_stats([2021, 2022, 2023, 2024, 2025]), Scoring(rec=1.0))
+    recent = int(pace["season"].max())
+    ol_r = ol[ol["season"] == recent].set_index("team")
+    pace_r = pace[pace["season"] == recent].set_index("team")
+    dfn_r = dfn[dfn["season"] == recent].set_index("team")
+
+    sc = sources.schedules()
+    d = sc[(sc["season"] == recent) & (sc["game_type"] == "REG") & sc["home_score"].notna()]
+    standings = {}
+    for _, g in d.iterrows():
+        for team, pf, pa in ((g["home_team"], g["home_score"], g["away_score"]),
+                              (g["away_team"], g["away_score"], g["home_score"])):
+            s = standings.setdefault(team, {"w": 0, "l": 0, "t": 0, "pf": 0.0, "pa": 0.0, "g": 0})
+            s["g"] += 1
+            s["pf"] += pf
+            s["pa"] += pa
+            if pf > pa:
+                s["w"] += 1
+            elif pf < pa:
+                s["l"] += 1
+            else:
+                s["t"] += 1
+
+    out = []
+    for team, s in standings.items():
+        row = {
+            "tm": team, "season": recent, "w": s["w"], "l": s["l"], "t": s["t"],
+            "pf": r(s["pf"] / s["g"], 1), "pa": r(s["pa"] / s["g"], 1),
+        }
+        if team in pace_r.index:
+            row["ppg"] = r(pace_r.loc[team, "plays_per_game"], 0)
+            row["pass_pct"] = r(pace_r.loc[team, "pass_rate"] * 100, 0)
+        if team in ol_r.index:
+            row["rbk"] = int(ol_r.loc[team, "run_block_rank"])
+            row["pbk"] = int(ol_r.loc[team, "pass_block_rank"])
+        if team in dfn_r.index:
+            row["drk"] = int(dfn_r.loc[team, "def_rank"]) if not pd.isna(dfn_r.loc[team, "def_rank"]) else None
+            fpa = {}
+            for pos in ("QB", "RB", "WR", "TE"):
+                col = f"fpa_{pos}_rank"
+                if col in dfn_r.columns and not pd.isna(dfn_r.loc[team, col]):
+                    fpa[pos] = int(dfn_r.loc[team, col])
+            row["fpa"] = fpa
+        out.append(row)
+    return sorted(out, key=lambda x: (-x["w"], x["l"]))
 
 
 def clean_html(s):
@@ -162,6 +239,9 @@ def main():
     news = build_news()
     print(f"news items: {len(news)}")
 
+    team_stats = build_team_stats()
+    print(f"team stats rows: {len(team_stats)}")
+
     with open(TEMPLATE_PATH) as f:
         html = f.read()
 
@@ -170,6 +250,7 @@ def main():
         "__LINEUPS_DATA__": json.dumps({"asOf": lineups_asof, "teams": lineups}, separators=(",", ":"), allow_nan=False),
         "__SCHEDULE_DATA__": json.dumps({"games": games, "byes": byes}, separators=(",", ":"), allow_nan=False),
         "__NEWS_DATA__": json.dumps(news, separators=(",", ":"), allow_nan=False),
+        "__TEAMSTATS_DATA__": json.dumps(team_stats, separators=(",", ":"), allow_nan=False),
     }
     for tag, payload in payloads.items():
         assert html.count(tag) == 1, f"expected exactly one {tag} in template"
