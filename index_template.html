@@ -274,6 +274,13 @@
     min-width: 28px;
     text-align: center;
   }
+  .star-btn {
+    display: inline-block; font-size: 16px; line-height: 1; color: var(--muted);
+    cursor: pointer; user-select: none; flex-shrink: 0;
+  }
+  .star-btn:hover { color: var(--warn); }
+  .star-btn.starred { color: var(--warn); }
+
   .chip.QB { background: var(--qb); }
   .chip.RB { background: var(--rb); }
   .chip.WR { background: var(--wr); }
@@ -336,6 +343,7 @@
   .depth-row .dplayers .sep { color: var(--border); margin: 0 2px; }
 
   .team-card { cursor: pointer; }
+  .team-card.is-starred { border-color: var(--warn); }
   .team-card-head .texpand { font-size: 11px; color: var(--muted); transition: transform 0.15s; }
   .team-card.expanded .texpand { transform: rotate(180deg); }
   .team-card-body { display: none; }
@@ -625,6 +633,7 @@
 <script id="schedule-data" type="application/json">__SCHEDULE_DATA__</script>
 <script id="news-data" type="application/json">__NEWS_DATA__</script>
 <script id="teamstats-data" type="application/json">__TEAMSTATS_DATA__</script>
+<script id="teamlogos-data" type="application/json">__TEAMLOGOS_DATA__</script>
 <script>
 (function () {
   var BOARD = JSON.parse(document.getElementById('board-data').textContent);
@@ -632,6 +641,41 @@
   var SCHED = JSON.parse(document.getElementById('schedule-data').textContent);
   var NEWS = JSON.parse(document.getElementById('news-data').textContent);
   var TEAMSTATS = JSON.parse(document.getElementById('teamstats-data').textContent);
+  var TEAMLOGOS = JSON.parse(document.getElementById('teamlogos-data').textContent);
+
+  /* ---------------- Team logos & starred teams (shared) ---------------- */
+  function logoImg(team, size) {
+    var url = TEAMLOGOS[team];
+    if (!url) return '';
+    size = size || 18;
+    return '<img src="' + url + '" alt="" width="' + size + '" height="' + size + '" loading="lazy" ' +
+      'style="vertical-align:middle;object-fit:contain;flex-shrink:0;" onerror="this.style.display=\'none\'">';
+  }
+
+  var STAR_KEY = 'jlb_starred_teams';
+  function getStars() {
+    try { return JSON.parse(localStorage.getItem(STAR_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function isStarred(team) { return getStars().indexOf(team) !== -1; }
+  function toggleStar(team) {
+    var s = getStars();
+    var i = s.indexOf(team);
+    if (i === -1) s.push(team); else s.splice(i, 1);
+    try { localStorage.setItem(STAR_KEY, JSON.stringify(s)); } catch (e) {}
+  }
+  function starBtn(team) {
+    return '<span class="star-btn' + (isStarred(team) ? ' starred' : '') + '" data-star-team="' + team + '" title="Star ' + team + '">' + (isStarred(team) ? '★' : '☆') + '</span>';
+  }
+  // Capturing-phase + one listener catches every star button, even ones re-rendered
+  // later, and runs before any ancestor's own bubbling click handler (e.g. a
+  // team-card's expand-on-click) so stopPropagation actually prevents it.
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-star-team]');
+    if (!el) return;
+    e.stopPropagation();
+    toggleStar(el.getAttribute('data-star-team'));
+    document.dispatchEvent(new CustomEvent('starschanged'));
+  }, true);
 
   var asOfDate = new Date(LINEUPS.asOf);
   document.getElementById('asof-note').innerHTML =
@@ -716,7 +760,7 @@
       html += '<tr class="row" data-id="' + rid + '">';
       html += '<td class="rk"><b>' + p.rk + '</b></td>';
       html += '<td><div class="name-cell"><span class="nm">' + p.n + '</span>' + (p.rook ? '<span class="rookie-flag">R</span>' : '') + '</div></td>';
-      html += '<td><span class="chip ' + p.pos + '">' + p.pr + '</span> <span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></td>';
+      html += '<td><span class="chip ' + p.pos + '">' + p.pr + '</span> <span style="display:inline-flex;align-items:center;gap:4px;">' + logoImg(p.tm, 15) + '<span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></span></td>';
       html += '<td class="num bye-flag">' + fmt(p.bye) + '</td>';
       html += '<td class="num">' + fmt(p.adp) + '</td>';
       html += '<td class="num"><span class="delta ' + deltaClass(p.adpd) + '">' + (p.adpd != null ? (p.adpd > 0 ? '+' : '') + p.adpd : '&mdash;') + '</span></td>';
@@ -776,6 +820,7 @@
   };
   var UNIT_LABEL = { OFF: 'Offense', DEF: 'Defense', ST: 'Special Teams' };
   var teamGrid = document.getElementById('team-grid');
+  var expandedTeams = {};
 
   function posRow(pos, players) {
     var names = players.slice(0, 3).map(function (pl, idx) {
@@ -786,7 +831,11 @@
 
   function renderLineups(filter) {
     filter = (filter || '').trim().toLowerCase();
-    var teams = Object.keys(LINEUPS.teams).sort();
+    var teams = Object.keys(LINEUPS.teams).sort(function (a, b) {
+      var sa = isStarred(a), sb = isStarred(b);
+      if (sa !== sb) return sa ? -1 : 1;
+      return a.localeCompare(b);
+    });
     var html = '';
     teams.forEach(function (team) {
       var units = LINEUPS.teams[team];
@@ -799,8 +848,8 @@
       if (filter && haystack.indexOf(filter) === -1) return;
 
       var byeMatch = SCHED.byes[team];
-      html += '<div class="team-card">';
-      html += '<div class="team-card-head"><span class="tname">' + team + '</span><span style="display:flex;align-items:center;gap:8px;"><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span><span class="texpand">&#9660;</span></span></div>';
+      html += '<div class="team-card' + (isStarred(team) ? ' is-starred' : '') + (expandedTeams[team] ? ' expanded' : '') + '" data-team="' + team + '">';
+      html += '<div class="team-card-head"><span class="tname" style="display:inline-flex;align-items:center;gap:7px;">' + starBtn(team) + logoImg(team, 24) + team + '</span><span style="display:flex;align-items:center;gap:8px;"><span class="tbye">' + (byeMatch ? 'bye wk ' + byeMatch : '') + '</span><span class="texpand">&#9660;</span></span></div>';
       html += '<div class="team-card-body">';
       Object.keys(UNIT_ORDER).forEach(function (u) {
         var rows = '';
@@ -815,7 +864,11 @@
     teamGrid.innerHTML = html || '<div class="empty-state">No matches.</div>';
 
     teamGrid.querySelectorAll('.team-card').forEach(function (card) {
-      card.addEventListener('click', function () { card.classList.toggle('expanded'); });
+      card.addEventListener('click', function () {
+        var t = card.getAttribute('data-team');
+        expandedTeams[t] = !expandedTeams[t];
+        card.classList.toggle('expanded');
+      });
     });
   }
   document.getElementById('team-q').addEventListener('input', function (e) { renderLineups(e.target.value); });
@@ -859,7 +912,7 @@
     games.forEach(function (g) {
       var when = (g.d ? g.d.slice(5) : '') + (g.t ? ' &middot; ' + g.t : '');
       weekHtml += '<div class="game-row game-row-full' + (g.div ? ' div' : '') + '">';
-      weekHtml += '<div class="game-top"><span class="game-teams">' + g.away + ' @ ' + g.home + '</span><span class="game-when">' + when + '</span></div>';
+      weekHtml += '<div class="game-top"><span class="game-teams" style="display:inline-flex;align-items:center;gap:5px;">' + logoImg(g.away, 17) + g.away + ' @ ' + logoImg(g.home, 17) + g.home + '</span><span class="game-when">' + when + '</span></div>';
       weekHtml += '<div class="game-odds">' + wpBarHTML(g) + oddsLineHTML(g) + '</div>';
       weekHtml += '</div>';
     });
@@ -907,7 +960,7 @@
     var matches = BOARD.filter(function (p) { return p.n.toLowerCase().indexOf(ql) !== -1; }).slice(0, 12);
     var html = '';
     matches.forEach(function (p) {
-      html += '<div class="hl-card"><div class="hl-who"><span class="chip ' + p.pos + '">' + p.pos + '</span><span class="hl-name">' + p.n + '</span><span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></div>';
+      html += '<div class="hl-card"><div class="hl-who"><span class="chip ' + p.pos + '">' + p.pos + '</span><span class="hl-name">' + p.n + '</span>' + logoImg(p.tm, 16) + '<span style="color:var(--muted);font-family:var(--font-data);font-size:11px;">' + (p.tm || '') + '</span></div>';
       html += '<a class="hl-watch" href="' + ytSearch(p.n + ' highlights ' + (p.tm || '') + ' NFL') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
     });
     hlPlayers.innerHTML = html || '<div class="empty-state">No players match that search.</div>';
@@ -925,7 +978,7 @@
     var html = '';
     games.forEach(function (g) {
       html += '<div class="hl-game-card" style="flex-direction:column;align-items:stretch;gap:6px;">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="hgt">' + g.away + ' @ ' + g.home + '</span>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="hgt" style="display:inline-flex;align-items:center;gap:5px;">' + logoImg(g.away, 16) + g.away + ' @ ' + logoImg(g.home, 16) + g.home + '</span>';
       html += '<a class="hl-watch" href="' + ytSearch(g.away + ' vs ' + g.home + ' highlights') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
       html += wpBarHTML(g) + '</div>';
     });
@@ -957,8 +1010,8 @@
     });
     var html = '';
     rows.forEach(function (t) {
-      html += '<tr>';
-      html += '<td><span class="nm" style="font-weight:600;">' + t.tm + '</span></td>';
+      html += '<tr' + (isStarred(t.tm) ? ' style="background:color-mix(in srgb, var(--warn) 8%, transparent);"' : '') + '>';
+      html += '<td><span class="nm" style="font-weight:600;display:inline-flex;align-items:center;gap:6px;">' + starBtn(t.tm) + logoImg(t.tm, 20) + t.tm + '</span></td>';
       html += '<td class="num">' + t.w + '-' + t.l + (t.t ? '-' + t.t : '') + '</td>';
       html += '<td class="num">' + fmt(t.pf) + '</td>';
       html += '<td class="num">' + fmt(t.pa) + '</td>';
@@ -984,6 +1037,12 @@
     });
   });
   renderTeamStats();
+
+  /* ---------------- Re-render on star toggle ---------------- */
+  document.addEventListener('starschanged', function () {
+    renderLineups(document.getElementById('team-q').value);
+    renderTeamStats();
+  });
 })();
 </script>
 </body>

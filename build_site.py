@@ -201,6 +201,22 @@ def previous_news():
         return []
 
 
+def build_team_logos():
+    """Official team logo URLs from nflverse's community-maintained team manifest --
+    same lineage as every other data source on this site, not hand-picked links."""
+    current = ["ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN",
+               "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA",
+               "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB",
+               "TEN", "WAS"]
+    try:
+        df = pd.read_csv("https://raw.githubusercontent.com/nflverse/nflfastR-data/master/teams_colors_logos.csv")
+        d = df[df["team_abbr"].isin(current)].set_index("team_abbr")
+        return {t: d.loc[t, "team_logo_espn"] for t in current if t in d.index}
+    except Exception as exc:
+        print(f"team logo fetch failed ({type(exc).__name__}: {exc}); logos will be blank")
+        return {}
+
+
 def build_news():
     try:
         resp = requests.get("https://www.espn.com/espn/rss/nfl/news", timeout=15,
@@ -242,6 +258,9 @@ def main():
     team_stats = build_team_stats()
     print(f"team stats rows: {len(team_stats)}")
 
+    team_logos = build_team_logos()
+    print(f"team logos: {len(team_logos)}")
+
     with open(TEMPLATE_PATH) as f:
         html = f.read()
 
@@ -251,6 +270,7 @@ def main():
         "__SCHEDULE_DATA__": json.dumps({"games": games, "byes": byes}, separators=(",", ":"), allow_nan=False),
         "__NEWS_DATA__": json.dumps(news, separators=(",", ":"), allow_nan=False),
         "__TEAMSTATS_DATA__": json.dumps(team_stats, separators=(",", ":"), allow_nan=False),
+        "__TEAMLOGOS_DATA__": json.dumps(team_logos, separators=(",", ":"), allow_nan=False),
     }
     for tag, payload in payloads.items():
         assert html.count(tag) == 1, f"expected exactly one {tag} in template"
