@@ -468,7 +468,7 @@
   .week-head .wcount { font-family: var(--font-data); font-weight: 400; text-transform: none; letter-spacing: 0; }
   .week-head .caret { font-size: 10px; transition: transform 0.15s; }
   .week-block.collapsed .caret { transform: rotate(-90deg); }
-  .week-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  .week-games { display: flex; flex-direction: column; gap: 6px; }
   .week-block.collapsed .week-games { display: none; }
   .game-row {
     display: flex; justify-content: space-between; align-items: center;
@@ -482,6 +482,39 @@
   .game-row-full .game-top { display: flex; justify-content: space-between; align-items: center; }
   .game-row-full .game-odds { display: flex; justify-content: space-between; align-items: center; }
   .game-line { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); }
+
+  .game-item.played .game-row-full {
+    cursor: pointer;
+    border-color: var(--good);
+    background: color-mix(in srgb, var(--good) 9%, var(--surface));
+  }
+  .final-badge {
+    font-family: var(--font-data); font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--good); border: 1px solid var(--good); border-radius: 4px; padding: 1px 5px;
+  }
+  .final-score { font-family: var(--font-data); font-weight: 700; font-size: 13px; }
+  .game-box {
+    display: none;
+    margin-top: 4px; padding: 12px 14px; border-radius: 7px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .game-item.expanded .game-box { display: block; }
+  .gb-section { margin-bottom: 10px; }
+  .gb-section:last-child { margin-bottom: 0; }
+  .gb-head {
+    font-family: var(--font-ui); font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .gb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .gb-team-label { font-family: var(--font-data); font-weight: 700; font-size: 11.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .gb-totals { font-family: var(--font-data); font-size: 11.5px; color: var(--text); line-height: 1.7; }
+  .gb-leader { font-size: 12px; margin-bottom: 4px; }
+  .gb-leader .gbl-name { font-weight: 600; }
+  .gb-leader .gbl-line { color: var(--muted); font-size: 11px; }
+  .gb-inj { font-size: 11.5px; margin-bottom: 3px; }
+  .gb-inj .status-out { color: var(--bad); font-weight: 700; }
+  .gb-inj .status-questionable, .gb-inj .status-doubtful { color: var(--warn); font-weight: 700; }
+  .gb-empty { font-size: 12px; color: var(--muted); font-style: italic; }
 
   /* ---------- Team Stats tab ---------- */
   #teamstats-table thead th { top: 78px; }
@@ -706,6 +739,7 @@
 <script id="news-data" type="application/json">__NEWS_DATA__</script>
 <script id="teamstats-data" type="application/json">__TEAMSTATS_DATA__</script>
 <script id="teamlogos-data" type="application/json">__TEAMLOGOS_DATA__</script>
+<script id="gamedetails-data" type="application/json">__GAMEDETAILS_DATA__</script>
 <script>
 (function () {
   var BOARD = JSON.parse(document.getElementById('board-data').textContent);
@@ -714,6 +748,7 @@
   var NEWS = JSON.parse(document.getElementById('news-data').textContent);
   var TEAMSTATS = JSON.parse(document.getElementById('teamstats-data').textContent);
   var TEAMLOGOS = JSON.parse(document.getElementById('teamlogos-data').textContent);
+  var GAMEDETAILS = JSON.parse(document.getElementById('gamedetails-data').textContent);
 
   /* ---------------- Team logos & starred teams (shared) ---------------- */
   function logoImg(team, size) {
@@ -1121,7 +1156,7 @@
   document.getElementById('team-q').addEventListener('input', function (e) { renderLineups(e.target.value); });
   renderLineups('');
 
-  /* ---------------- Win probability (shared) ---------------- */
+  /* ---------------- Win probability / final score (shared) ---------------- */
   function wpBarHTML(g) {
     if (g.hwp == null) return '<span class="wp-na">odds not posted yet</span>';
     var awp = 100 - g.hwp;
@@ -1136,6 +1171,77 @@
     if (g.spread != null) parts.push('spread ' + (g.spread > 0 ? '+' : '') + g.spread);
     if (g.total != null) parts.push('o/u ' + g.total);
     return parts.length ? '<span class="game-line">' + parts.join(' &middot; ') + '</span>' : '';
+  }
+  // Once a game's been played the pregame odds are moot -- show what actually
+  // happened instead of a probability for an event that's already resolved.
+  function scoreOrOddsHTML(g) {
+    if (!g.played) return wpBarHTML(g) + oddsLineHTML(g);
+    var awayWon = g.as > g.hs, homeWon = g.hs > g.as;
+    return '<span class="final-badge">FINAL</span>' +
+      '<span class="final-score">' + g.away + ' ' + (awayWon ? '<b>' + g.as + '</b>' : g.as) +
+      ' &ndash; ' + (homeWon ? '<b>' + g.hs + '</b>' : g.hs) + ' ' + g.home + '</span>';
+  }
+
+  /* ---------------- Box score (played games only) ---------------- */
+  function statusClass(status) {
+    var s = (status || '').toLowerCase();
+    if (s === 'out') return 'status-out';
+    if (s === 'doubtful') return 'status-questionable';
+    if (s === 'questionable') return 'status-questionable';
+    return '';
+  }
+  function gameBoxHTML(g) {
+    var d = GAMEDETAILS[g.gid];
+    if (!d) return '<p class="gb-empty">Box score not available yet.</p>';
+    var html = '';
+
+    if (d.totals) {
+      html += '<div class="gb-section"><div class="gb-head">Team Totals</div><div class="gb-cols">';
+      [['away', g.away], ['home', g.home]].forEach(function (pair) {
+        var side = pair[0], team = pair[1], t = d.totals[side];
+        html += '<div><div class="gb-team-label">' + logoImg(team, 16) + team + '</div>';
+        html += '<div class="gb-totals">' + t.pass + ' pass yds<br>' + t.rush + ' rush yds<br>' + t.to + ' turnovers</div></div>';
+      });
+      html += '</div></div>';
+    }
+
+    if (d.leaders) {
+      html += '<div class="gb-section"><div class="gb-head">Top Performers</div><div class="gb-cols">';
+      [['away', g.away], ['home', g.home]].forEach(function (pair) {
+        var side = pair[0], team = pair[1], leaders = d.leaders[side] || [];
+        html += '<div><div class="gb-team-label">' + logoImg(team, 16) + team + '</div>';
+        if (!leaders.length) html += '<div class="gb-empty">No standout performers.</div>';
+        leaders.forEach(function (p) {
+          html += '<div class="gb-leader"><span class="gbl-name">' + esc(p.n) + '</span> (' + p.pos + ', ' + p.fp + ' pts)<br>' +
+            '<span class="gbl-line">' + esc(p.line) + '</span></div>';
+        });
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    if (d.injuries) {
+      var anyInj = (d.injuries.away || []).length || (d.injuries.home || []).length;
+      html += '<div class="gb-section"><div class="gb-head">Injury Report That Week</div>';
+      if (!anyInj) {
+        html += '<p class="gb-empty">No notable injury designations.</p>';
+      } else {
+        html += '<div class="gb-cols">';
+        [['away', g.away], ['home', g.home]].forEach(function (pair) {
+          var side = pair[0], team = pair[1], list = d.injuries[side] || [];
+          html += '<div><div class="gb-team-label">' + logoImg(team, 16) + team + '</div>';
+          if (!list.length) html += '<div class="gb-empty">None listed.</div>';
+          list.forEach(function (p) {
+            html += '<div class="gb-inj">' + esc(p.n) + ' (' + p.pos + ') &mdash; <span class="' + statusClass(p.status) + '">' + esc(p.status) + '</span></div>';
+          });
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    return html || '<p class="gb-empty">Box score not available yet.</p>';
   }
 
   /* ---------------- Schedule ---------------- */
@@ -1153,14 +1259,18 @@
   var weekHtml = '';
   Object.keys(byWeek).map(Number).sort(function (a, b) { return a - b; }).forEach(function (wk) {
     var games = byWeek[wk];
-    weekHtml += '<div class="week-block' + (wk > 1 ? ' collapsed' : '') + '" data-wk="' + wk + '">';
+    var anyUnplayed = games.some(function (g) { return !g.played; });
+    weekHtml += '<div class="week-block' + (wk > 1 && anyUnplayed ? ' collapsed' : '') + '" data-wk="' + wk + '">';
     weekHtml += '<div class="week-head"><span class="caret">&#9660;</span>Week ' + wk + '<span class="wcount">(' + games.length + ' games)</span></div>';
     weekHtml += '<div class="week-games">';
     games.forEach(function (g) {
       var when = (g.d ? g.d.slice(5) : '') + (g.t ? ' &middot; ' + g.t : '');
+      weekHtml += '<div class="game-item' + (g.played ? ' played' : '') + '" data-gid="' + esc(g.gid) + '">';
       weekHtml += '<div class="game-row game-row-full' + (g.div ? ' div' : '') + '">';
       weekHtml += '<div class="game-top"><span class="game-teams" style="display:inline-flex;align-items:center;gap:5px;">' + logoImg(g.away, 17) + g.away + ' @ ' + logoImg(g.home, 17) + g.home + '</span><span class="game-when">' + when + '</span></div>';
-      weekHtml += '<div class="game-odds">' + wpBarHTML(g) + oddsLineHTML(g) + '</div>';
+      weekHtml += '<div class="game-odds">' + scoreOrOddsHTML(g) + '</div>';
+      weekHtml += '</div>';
+      if (g.played) weekHtml += '<div class="game-box"></div>';
       weekHtml += '</div>';
     });
     weekHtml += '</div></div>';
@@ -1169,6 +1279,22 @@
 
   weeksList.querySelectorAll('.week-head').forEach(function (h) {
     h.addEventListener('click', function () { h.closest('.week-block').classList.toggle('collapsed'); });
+  });
+
+  var gamesByGid = {};
+  SCHED.games.forEach(function (g) { gamesByGid[g.gid] = g; });
+  weeksList.querySelectorAll('.game-item.played').forEach(function (item) {
+    item.querySelector('.game-row-full').addEventListener('click', function () {
+      var wasExpanded = item.classList.contains('expanded');
+      item.classList.toggle('expanded');
+      if (!wasExpanded) {
+        var box = item.querySelector('.game-box');
+        if (box && !box.dataset.rendered) {
+          box.innerHTML = gameBoxHTML(gamesByGid[item.getAttribute('data-gid')]);
+          box.dataset.rendered = '1';
+        }
+      }
+    });
   });
 
   /* ---------------- News ---------------- */
@@ -1224,10 +1350,11 @@
     hlWeekHead.textContent = games.length ? 'Week ' + targetWeek + ' games' : 'This week\'s games';
     var html = '';
     games.forEach(function (g) {
-      html += '<div class="hl-game-card" style="flex-direction:column;align-items:stretch;gap:6px;">';
+      html += '<div class="hl-game-card' + (g.played ? ' played' : '') + '" style="flex-direction:column;align-items:stretch;gap:6px;' +
+        (g.played ? 'border-color:var(--good);background:color-mix(in srgb, var(--good) 9%, var(--surface));' : '') + '">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;"><span class="hgt" style="display:inline-flex;align-items:center;gap:5px;">' + logoImg(g.away, 16) + g.away + ' @ ' + logoImg(g.home, 16) + g.home + '</span>';
       html += '<a class="hl-watch" href="' + ytSearch(g.away + ' vs ' + g.home + ' highlights') + '" target="_blank" rel="noopener">WATCH &rarr;</a></div>';
-      html += wpBarHTML(g) + '</div>';
+      html += scoreOrOddsHTML(g) + '</div>';
     });
     hlGames.innerHTML = html || '<div class="empty-state">No games scheduled.</div>';
   })();

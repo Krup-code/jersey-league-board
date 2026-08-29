@@ -107,21 +107,116 @@ def build_schedule_and_byes():
         hwp = None
         if home_p is not None and away_p is not None and (home_p + away_p) > 0:
             hwp = round(100 * home_p / (home_p + away_p))
+        played = bool(pd.notna(rr["home_score"]))
         games.append({
+            "gid": rr["game_id"],
             "wk": int(rr["week"]), "d": rr["gameday"], "wd": rr["weekday"], "t": rr["gametime"],
             "away": rr["away_team"], "home": rr["home_team"], "div": bool(rr["div_game"]),
             "hwp": hwp,
             "spread": r(rr["spread_line"], 1),
             "total": r(rr["total_line"], 1),
+            "played": played,
+            "as": r(rr["away_score"], 0) if played else None,
+            "hs": r(rr["home_score"], 0) if played else None,
         })
 
     all_teams = sorted(set(sc["home_team"]) | set(sc["away_team"]))
     byes = {}
     for team in all_teams:
-        played = set(sc[(sc["home_team"] == team) | (sc["away_team"] == team)]["week"])
-        bye = sorted(set(range(1, 19)) - played)
+        played_weeks = set(sc[(sc["home_team"] == team) | (sc["away_team"] == team)]["week"])
+        bye = sorted(set(range(1, 19)) - played_weeks)
         byes[team] = bye[0] if bye else None
     return games, byes
+
+
+def statline(row):
+    pos = row.get("position")
+    if pos == "QB":
+        line = f'{int(row["completions"])}/{int(row["attempts"])}, {int(row["passing_yards"])} yds'
+        if row["passing_tds"]:
+            line += f', {int(row["passing_tds"])} TD'
+        if row["passing_interceptions"]:
+            line += f', {int(row["passing_interceptions"])} INT'
+        return line
+    if pos == "RB":
+        line = f'{int(row["carries"])} car, {int(row["rushing_yards"])} yds'
+        if row["rushing_tds"]:
+            line += f', {int(row["rushing_tds"])} TD'
+        if row["receptions"]:
+            line += f' + {int(row["receptions"])} rec, {int(row["receiving_yards"])} yds'
+        return line
+    if pos in ("WR", "TE"):
+        line = f'{int(row["receptions"])} rec, {int(row["receiving_yards"])} yds'
+        if row["receiving_tds"]:
+            line += f', {int(row["receiving_tds"])} TD'
+        return line
+    return f'{r(row.get("fp"), 1)} pts'
+
+
+def build_game_details(games):
+    """Box scores for games that have actually been played. The 2026 season hasn't
+    started yet as of this build, so this legitimately returns nothing right now --
+    it fills in week by week, automatically, as real games happen and the daily
+    refresh re-pulls weekly_stats/injuries for the season."""
+    played_games = [g for g in games if g["played"]]
+    if not played_games:
+        print("no games played yet this season -- game details will be empty")
+        return {}
+
+    try:
+        ws = sources.weekly_stats([2026])
+    except Exception as exc:
+        print(f"2026 weekly stats not available yet ({type(exc).__name__}); no box scores")
+        ws = pd.DataFrame()
+    try:
+        inj = sources.injuries([2026])
+    except Exception as exc:
+        print(f"2026 injury reports not available yet ({type(exc).__name__})")
+        inj = pd.DataFrame()
+
+    if not ws.empty:
+        ws = ws.copy()
+        ws["fp"] = features.fantasy_points(ws, Scoring(rec=1.0))
+
+    details = {}
+    for g in played_games:
+        entry = {"final": {"away": g["as"], "home": g["hs"]}}
+
+        if not ws.empty:
+            gws = ws[ws["game_id"] == g["gid"]]
+            totals, leaders = {}, {}
+            for side, team in (("away", g["away"]), ("home", g["home"])):
+                tw = gws[gws["team"] == team]
+                totals[side] = {
+                    "pass": int(tw["passing_yards"].fillna(0).sum()),
+                    "rush": int(tw["rushing_yards"].fillna(0).sum()),
+                    "to": int((tw["passing_interceptions"].fillna(0) + tw["rushing_fumbles_lost"].fillna(0)
+                               + tw["receiving_fumbles_lost"].fillna(0) + tw["sack_fumbles_lost"].fillna(0)).sum()),
+                }
+                top = tw.sort_values("fp", ascending=False).head(3)
+                leaders[side] = [
+                    {"n": row["player_display_name"], "pos": row["position"],
+                     "fp": r(row["fp"], 1), "line": statline(row)}
+                    for _, row in top.iterrows()
+                ]
+            entry["totals"] = totals
+            entry["leaders"] = leaders
+
+        if not inj.empty:
+            wi = inj[(inj["week"] == g["wk"]) & inj["report_status"].notna()]
+            inj_out = {}
+            for side, team in (("away", g["away"]), ("home", g["home"])):
+                ti = wi[wi["team"] == team]
+                inj_out[side] = [
+                    {"n": row["full_name"], "pos": row["position"], "status": row["report_status"]}
+                    for _, row in ti.iterrows()
+                ]
+            entry["injuries"] = inj_out
+
+        details[g["gid"]] = entry
+
+    print(f"game details built for {len(details)} played games")
+    return details
 
 
 def build_team_stats():
@@ -251,6 +346,8 @@ def main():
     games, byes = build_schedule_and_byes()
     print(f"scheduled games: {len(games)}")
 
+    game_details = build_game_details(games)
+
     for p in rows:
         p["bye"] = byes.get(p["tm"])
 
@@ -276,6 +373,7 @@ def main():
         "__NEWS_DATA__": json.dumps(news, separators=(",", ":"), allow_nan=False),
         "__TEAMSTATS_DATA__": json.dumps(team_stats, separators=(",", ":"), allow_nan=False),
         "__TEAMLOGOS_DATA__": json.dumps(team_logos, separators=(",", ":"), allow_nan=False),
+        "__GAMEDETAILS_DATA__": json.dumps(game_details, separators=(",", ":"), allow_nan=False),
         "__BUILD_TIME__": build_time,
     }
     for tag, payload in payloads.items():
