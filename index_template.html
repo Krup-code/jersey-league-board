@@ -365,10 +365,14 @@
     font-size: 10px; letter-spacing: 0.4px; color: var(--muted); margin-bottom: 4px;
     text-transform: uppercase;
   }
+  .field-asof {
+    font-family: var(--font-data); font-size: 10px; color: var(--muted);
+    text-align: center; margin-top: 5px; text-transform: none; letter-spacing: 0;
+  }
   .field {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 11;
+    aspect-ratio: 16 / 16;
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid var(--border);
@@ -377,7 +381,7 @@
       repeating-linear-gradient(180deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 10%);
   }
   .field .los {
-    position: absolute; left: 0; right: 0; top: 56%; height: 2px;
+    position: absolute; left: 0; right: 0; top: 63%; height: 2px;
     background: rgba(255,255,255,0.55);
   }
   .field .los::after {
@@ -386,15 +390,43 @@
   }
   .fmarker {
     position: absolute; transform: translate(-50%, -50%);
-    width: 30px; height: 30px; border-radius: 50%;
+    width: 22px; height: 22px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-data); font-size: 9.5px; font-weight: 700; color: #fff;
+    font-family: var(--font-data); font-size: 7.5px; font-weight: 700; color: #fff;
     border: 1.5px solid rgba(255,255,255,0.85);
     text-shadow: 0 1px 2px rgba(0,0,0,0.7);
     box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-    cursor: default;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    z-index: 1;
   }
-  @media (min-width: 480px) { .fmarker { width: 34px; height: 34px; font-size: 10.5px; } }
+  .fmarker:hover, .fmarker.active {
+    transform: translate(-50%, -50%) scale(1.35);
+    z-index: 2;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.5), 0 2px 6px rgba(0,0,0,0.5);
+  }
+  @media (min-width: 420px) { .fmarker { width: 26px; height: 26px; font-size: 8.5px; } }
+  @media (min-width: 620px) { .fmarker { width: 30px; height: 30px; font-size: 9.5px; } }
+
+  .field-namecard {
+    margin-top: 8px;
+    text-align: center;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    min-height: 18px;
+    transition: color 0.15s, text-shadow 0.15s;
+  }
+  .field-namecard .fn-pos {
+    font-family: var(--font-data); font-size: 10px; color: var(--muted);
+    margin-right: 5px; letter-spacing: 0.3px;
+  }
+  .field-namecard.glow {
+    color: var(--accent);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+  .field-namecard.glow .fn-pos { color: var(--accent); }
 
   /* ---------- Win probability ---------- */
   .wp-bar { display: flex; align-items: center; gap: 6px; }
@@ -910,20 +942,25 @@
   var teamGrid = document.getElementById('team-grid');
   var expandedTeams = {};
 
+  // Spaced out generously on purpose -- these are read on narrow 250px team
+  // cards, and a football has way more positions than fit comfortably in that
+  // width if packed tight. Offense sits below the LOS (own backfield), defense
+  // above it (toward their own end zone).
   var OFF_COORDS = {
-    LT: [32, 52], LG: [41, 52], C: [50, 52], RG: [59, 52], RT: [68, 52],
-    TE: [78, 53], QB: [50, 62], RB: [50, 74], FB: [39, 66],
-    WR_L: [7, 51], WR_R: [93, 51], WR_SLOT: [20, 56],
+    LT: [18, 58], LG: [34, 58], C: [50, 58], RG: [66, 58], RT: [82, 58],
+    TE: [93, 61], QB: [50, 71], RB: [50, 86], FB: [34, 77],
+    WR_L: [4, 55], WR_R: [96, 55], WR_SLOT: [10, 68],
   };
   var DEF_COORDS = {
-    LDE: [28, 43], LDT: [42, 43], NT: [50, 43], RDT: [58, 43], RDE: [72, 43],
-    WLB: [24, 34], MLB: [50, 33], SLB: [76, 34], LILB: [43, 34], RILB: [57, 34],
-    LCB: [10, 24], RCB: [90, 24], NB: [50, 27], SS: [37, 13], FS: [63, 13],
+    LDE: [30, 47], LDT: [42, 47], NT: [50, 47], RDT: [58, 47], RDE: [70, 47],
+    WLB: [19, 33], MLB: [50, 31], SLB: [81, 33], LILB: [41, 32], RILB: [59, 32],
+    LCB: [5, 17], RCB: [95, 17], NB: [50, 20], SS: [31, 5], FS: [69, 5],
   };
 
   function fieldMarker(label, playerName, xy, color) {
     if (!playerName) return '';
-    return '<div class="fmarker" style="left:' + xy[0] + '%;top:' + xy[1] + '%;background:' + color + ';" title="' + esc(label) + ': ' + esc(playerName) + '">' + label + '</div>';
+    return '<div class="fmarker" style="left:' + xy[0] + '%;top:' + xy[1] + '%;background:' + color + ';" ' +
+      'data-pos="' + esc(label) + '" data-name="' + esc(playerName) + '" title="' + esc(label) + ': ' + esc(playerName) + '">' + label + '</div>';
   }
 
   function fieldHTML(team, units) {
@@ -945,9 +982,49 @@
       if (p) html += fieldMarker(pos, p.n, DEF_COORDS[pos], colors.c2);
     });
 
+    var asOfStr = asOfDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return '<div class="field-wrap"><div class="field-legend"><span>Defense</span><span>Offense</span></div>' +
-      '<div class="field"><div class="los"></div>' + html + '</div></div>';
+      '<div class="field"><div class="los"></div>' + html + '</div>' +
+      '<div class="field-namecard" data-default="1">tap or hover a position</div>' +
+      '<div class="field-asof">Starters as of ' + asOfStr + ' &mdash; updates daily, changes with the real depth chart</div>' +
+      '</div>';
   }
+
+  // One delegated set of handlers for every field on the page: hover shows the
+  // name (desktop), click/tap pins it and glows (touch devices, or just a click);
+  // clicking elsewhere in the card clears it without triggering the card's own
+  // expand/collapse toggle.
+  function showFieldName(marker) {
+    var wrap = marker.closest('.field-wrap');
+    var nameEl = wrap && wrap.querySelector('.field-namecard');
+    if (!nameEl) return;
+    nameEl.innerHTML = '<span class="fn-pos">' + marker.getAttribute('data-pos') + '</span>' + esc(marker.getAttribute('data-name'));
+    nameEl.classList.add('glow');
+    nameEl.removeAttribute('data-default');
+  }
+  function clearFieldName(wrap) {
+    var nameEl = wrap && wrap.querySelector('.field-namecard');
+    if (!nameEl) return;
+    nameEl.textContent = 'tap or hover a position';
+    nameEl.classList.remove('glow');
+    nameEl.setAttribute('data-default', '1');
+  }
+  document.addEventListener('mouseover', function (e) {
+    var m = e.target.closest && e.target.closest('.fmarker');
+    if (m) showFieldName(m);
+  });
+  document.addEventListener('mouseout', function (e) {
+    var m = e.target.closest && e.target.closest('.fmarker');
+    if (m) clearFieldName(m.closest('.field-wrap'));
+  });
+  document.addEventListener('click', function (e) {
+    var m = e.target.closest && e.target.closest('.fmarker');
+    if (!m) return;
+    e.stopPropagation();
+    document.querySelectorAll('.fmarker.active').forEach(function (a) { a.classList.remove('active'); });
+    m.classList.add('active');
+    showFieldName(m);
+  }, true);
 
   function posRow(pos, players) {
     var names = players.slice(0, 3).map(function (pl, idx) {
