@@ -1017,6 +1017,47 @@
     var m = e.target.closest && e.target.closest('.fmarker');
     if (m) clearFieldName(m.closest('.field-wrap'));
   });
+  function normName(s) {
+    return (s || '').toLowerCase().replace(/[^a-z\s]/g, '')
+      .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Only QB/RB/WR/TE are modelled on the Draft Board at all (O-line, defense,
+  // and special teams aren't fantasy-relevant positions), so this only jumps
+  // there when a real match exists -- clicking a lineman or corner just shows
+  // the name on the field, same as before.
+  function jumpToBoardPlayer(playerName) {
+    var target = normName(playerName);
+    var match = BOARD.find(function (p) { return normName(p.n) === target; });
+    if (!match) return false;
+
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+    document.querySelector('.tab-btn[data-tab="board"]').classList.add('active');
+    document.getElementById('panel-board').classList.add('active');
+
+    state.pos = 'ALL';
+    document.querySelectorAll('.pos-tab').forEach(function (t) { t.classList.remove('active'); });
+    document.querySelector('.pos-tab[data-pos="ALL"]').classList.add('active');
+    state.valueOnly = false;
+    document.getElementById('value-toggle').classList.remove('active');
+
+    var qInput = document.getElementById('q');
+    qInput.value = match.n;
+    state.q = match.n;
+    renderBoard();
+
+    var row = Array.from(tbody.querySelectorAll('tr.row')).find(function (tr) {
+      return tr.querySelector('.nm').textContent === match.n;
+    });
+    if (row) {
+      var det = tbody.querySelector('tr.detail[data-id="' + row.getAttribute('data-id') + '"]');
+      if (det) det.classList.add('open');
+      if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return true;
+  }
+
   document.addEventListener('click', function (e) {
     var m = e.target.closest && e.target.closest('.fmarker');
     if (!m) return;
@@ -1024,6 +1065,7 @@
     document.querySelectorAll('.fmarker.active').forEach(function (a) { a.classList.remove('active'); });
     m.classList.add('active');
     showFieldName(m);
+    jumpToBoardPlayer(m.getAttribute('data-name'));
   }, true);
 
   function posRow(pos, players) {
