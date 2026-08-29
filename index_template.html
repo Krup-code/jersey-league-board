@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Draft board, lineups, schedule, news and highlights for the Jersey League fantasy football draft.">
+<meta name="build-time" content="__BUILD_TIME__">
 <title>Jersey League Board</title>
 <style>
   @media (prefers-color-scheme: dark) {
@@ -547,6 +548,7 @@
         <span><b>12</b> teams &middot; <b>Full PPR</b></span>
         <span>Your slot: <b>#9</b></span>
         <span id="asof-note"></span>
+        <span id="update-status" title="Checks the live site every 2 minutes and reloads automatically when new data is published"></span>
       </div>
     </div>
     <div class="tabs">
@@ -722,6 +724,50 @@
   var asOfDate = new Date(LINEUPS.asOf);
   document.getElementById('asof-note').innerHTML =
     'Lineups as of <b>' + asOfDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</b>';
+
+  /* ---------------- Auto-update checker ---------------- */
+  // The build tags every deploy with its own timestamp. Every CHECK_SECS this
+  // re-fetches the live page (cache bypassed) and compares that stamp; a mismatch
+  // means a newer build shipped, so it reloads automatically. This exists because
+  // GitHub Pages' CDN and browsers both cache the page for several minutes, which
+  // made "it didn't update" a recurring false alarm -- this makes staleness
+  // self-correcting instead of something to diagnose by hand.
+  var BUILD_TIME = document.querySelector('meta[name="build-time"]').content;
+  var CHECK_SECS = 120;
+  var secsLeft = CHECK_SECS;
+  var statusEl = document.getElementById('update-status');
+
+  function fmtCountdown(s) {
+    var m = Math.floor(s / 60), r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  function checkForUpdate() {
+    statusEl.textContent = 'checking for updates…';
+    fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })
+      .then(function (resp) { return resp.text(); })
+      .then(function (text) {
+        var m = text.match(/name="build-time" content="([^"]+)"/);
+        if (m && m[1] !== BUILD_TIME) {
+          statusEl.textContent = 'newer data found — reloading…';
+          setTimeout(function () { location.reload(); }, 900);
+        } else {
+          secsLeft = CHECK_SECS;
+          statusEl.textContent = 'up to date · next check in ' + fmtCountdown(secsLeft);
+        }
+      })
+      .catch(function () {
+        secsLeft = CHECK_SECS;
+        statusEl.textContent = 'update check failed · retrying in ' + fmtCountdown(secsLeft);
+      });
+  }
+
+  statusEl.textContent = 'next check in ' + fmtCountdown(secsLeft);
+  setInterval(function () {
+    secsLeft--;
+    if (secsLeft <= 0) { checkForUpdate(); return; }
+    statusEl.textContent = 'up to date · next check in ' + fmtCountdown(secsLeft);
+  }, 1000);
 
   /* ---------------- Tabs ---------------- */
   document.querySelectorAll('.tab-btn').forEach(function (btn) {

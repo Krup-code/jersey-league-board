@@ -4,6 +4,7 @@ import json
 import math
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 
 import pandas as pd
 import requests
@@ -262,6 +263,9 @@ def main():
     team_logos = build_team_logos()
     print(f"team logos: {len(team_logos)}")
 
+    build_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"build time: {build_time}")
+
     with open(TEMPLATE_PATH) as f:
         html = f.read()
 
@@ -272,6 +276,7 @@ def main():
         "__NEWS_DATA__": json.dumps(news, separators=(",", ":"), allow_nan=False),
         "__TEAMSTATS_DATA__": json.dumps(team_stats, separators=(",", ":"), allow_nan=False),
         "__TEAMLOGOS_DATA__": json.dumps(team_logos, separators=(",", ":"), allow_nan=False),
+        "__BUILD_TIME__": build_time,
     }
     for tag, payload in payloads.items():
         assert html.count(tag) == 1, f"expected exactly one {tag} in template"
