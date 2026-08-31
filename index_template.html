@@ -810,6 +810,7 @@
   }
 
   function checkForUpdate() {
+    lastCheckAt = Date.now();
     statusEl.textContent = 'checking for updates…';
     fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })
       .then(function (resp) { return resp.text(); })
@@ -829,12 +830,29 @@
       });
   }
 
+  var lastCheckAt = 0;
   statusEl.textContent = 'next check in ' + fmtCountdown(secsLeft);
   setInterval(function () {
     secsLeft--;
     if (secsLeft <= 0) { checkForUpdate(); return; }
     statusEl.textContent = 'up to date · next check in ' + fmtCountdown(secsLeft);
   }, 1000);
+
+  // setInterval is heavily throttled (sometimes stopped entirely) in a background
+  // or unfocused tab, so a tab left open and idle for a while may never actually
+  // have hit the timer above. Whenever the tab becomes visible/focused again --
+  // exactly the moment someone's looking at it and staleness would matter -- check
+  // right then instead of waiting for the countdown to catch up. Debounced so
+  // rapid focus/visibility events (or one right after a timer-triggered check)
+  // don't fire duplicate requests.
+  function checkOnReturn() {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastCheckAt < 15000) return;
+    secsLeft = CHECK_SECS;
+    checkForUpdate();
+  }
+  document.addEventListener('visibilitychange', checkOnReturn);
+  window.addEventListener('focus', checkOnReturn);
 
   /* ---------------- Tabs ---------------- */
   document.querySelectorAll('.tab-btn').forEach(function (btn) {
